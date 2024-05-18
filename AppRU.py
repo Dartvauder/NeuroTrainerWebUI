@@ -83,8 +83,11 @@ def get_available_llm_datasets():
     return llm_available_datasets
 
 
-def load_model_and_tokenizer(model_name):
-    model_path = os.path.join("models/llm", model_name)
+def load_model_and_tokenizer(model_name, finetuned=False):
+    if finetuned:
+        model_path = os.path.join("finetuned-models/llm", model_name)
+    else:
+        model_path = os.path.join("models/llm", model_name)
     try:
         model = AutoModelForCausalLM.from_pretrained(model_path)
         tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -215,7 +218,7 @@ def plot_evaluation_metrics(metrics):
 
 def evaluate_llm(model_name, dataset_file):
     model_path = os.path.join("finetuned-models/llm", model_name)
-    model, tokenizer = load_model_and_tokenizer(model_name)
+    model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
         return None, "Error loading model and tokenizer. Please check the model path."
 
@@ -259,8 +262,7 @@ def evaluate_llm(model_name, dataset_file):
 
 
 def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
-    model_path = os.path.join("finetuned-models/llm", model_name)
-    model, tokenizer = load_model_and_tokenizer(model_path)
+    model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path."
 

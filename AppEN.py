@@ -58,6 +58,19 @@ def get_available_llm_models():
     return llm_available_models
 
 
+def get_available_finetuned_models():
+    models_dir = "finetuned-models/llm"
+    os.makedirs(models_dir, exist_ok=True)
+
+    finetuned_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            finetuned_available_models.append(model_name)
+
+    return finetuned_available_models
+
+
 def get_available_llm_datasets():
     datasets_dir = "datasets/llm"
     os.makedirs(datasets_dir, exist_ok=True)
@@ -70,10 +83,14 @@ def get_available_llm_datasets():
     return llm_available_datasets
 
 
-def load_model_and_tokenizer(model_name):
-    model_path = os.path.join("models/llm", model_name)
+def load_model_and_tokenizer(model_name, finetuned=False):
+    if finetuned:
+        model_path = os.path.join("finetuned-models/llm", model_name)
+    else:
+        model_path = os.path.join("models/llm", model_name)
     try:
-        model = AutoModelForCausalLM.from_pretrained(model_path)
+        device = "cuda"
+        model = AutoModelForCausalLM.from_pretrained(model_path, device_map=device, torch_dtype=torch.float16, trust_remote_code=True)
         tokenizer = AutoTokenizer.from_pretrained(model_path)
         return model, tokenizer
     except Exception as e:
@@ -166,7 +183,7 @@ def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, we
 
     plot_dir = save_dir
     os.makedirs(plot_dir, exist_ok=True)
-    plot_path = os.path.join(save_dir, f"{model_name}_loss_plot.png")
+    plot_path = os.path.join(save_dir, model_name, f"{model_name}_loss_plot.png")
     plt.tight_layout()
     plt.savefig(plot_path)
     plt.close()
@@ -174,10 +191,37 @@ def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, we
     return f"Training completed. Model saved at: {save_path}", fig
 
 
+def plot_evaluation_metrics(metrics):
+    if metrics is None:
+        return None
+
+    metrics_to_plot = ['loss', 'perplexity', 'eval_runtime', 'eval_samples_per_second', 'eval_steps_per_second']
+    metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    bar_width = 0.6
+    x = range(len(metrics_to_plot))
+    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(metrics_to_plot, rotation=45, ha='right')
+    ax.set_ylabel('Value')
+    ax.set_title('Evaluation Metrics')
+
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3), textcoords='offset points', ha='center', va='bottom')
+
+    fig.tight_layout()
+    return fig
+
+
 def evaluate_llm(model_name, dataset_file):
-    model, tokenizer = load_model_and_tokenizer(model_name)
+    model_path = os.path.join("finetuned-models/llm", model_name)
+    model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
-        return "Error loading model and tokenizer. Please check the model path."
+        return None, "Error loading model and tokenizer. Please check the model path."
 
     dataset_path = os.path.join("datasets/llm", dataset_file)
     try:
@@ -198,24 +242,31 @@ def evaluate_llm(model_name, dataset_file):
         eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
     except Exception as e:
         print(f"Error loading dataset: {e}")
-        return f"Error loading dataset. Please check the dataset path and format. Error: {e}"
+        return None, f"Error loading dataset. Please check the dataset path and format. Error: {e}"
 
     try:
         trainer = Trainer(model=model)
         metrics = trainer.evaluate(eval_dataset)
-        return f"Evaluation metrics: {metrics}"
+
+        required_metrics = ['loss', 'perplexity', 'eval_runtime', 'eval_samples_per_second', 'eval_steps_per_second']
+        extracted_metrics = {metric: metrics[metric] for metric in required_metrics if metric in metrics}
+
+        fig = plot_evaluation_metrics(extracted_metrics)
+
+        plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
+        fig.savefig(plot_path)
+
+        return fig, f"Evaluation completed successfully. Results saved to {plot_path}"
     except Exception as e:
         print(f"Error during evaluation: {e}")
-        return f"Evaluation failed. Error: {e}"
+        return None, f"Evaluation failed. Error: {e}"
 
 
 def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
-    # Загрузка модели и токенизатора
-    model, tokenizer = load_model_and_tokenizer(model_name)
+    model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path."
 
-    # Генерация текста
     try:
         input_ids = tokenizer.encode(prompt, return_tensors='pt')
         attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
@@ -243,6 +294,19 @@ def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
         return f"Text generation failed. Error: {e}"
 
 
+def close_terminal():
+    os._exit(1)
+
+
+def open_finetuned_folder():
+    outputs_folder = "finetuned-models"
+    if os.path.exists(outputs_folder):
+        if os.name == "nt":
+            os.startfile(outputs_folder)
+        else:
+            os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
+
+
 llm_train_interface = gr.Interface(
     fn=finetune_llm,
     inputs=[
@@ -260,7 +324,7 @@ llm_train_interface = gr.Interface(
         gr.Textbox(label="Training status", type="text"),
         gr.Plot(label="Training Loss")
     ],
-    title="LLM Fine-tuning",
+    title="NeuroTrainerWebUI (ALPHA) - LLM Fine-tuning",
     description="Fine-tune LLM models on a custom dataset",
     allow_flagging="never",
 )
@@ -268,11 +332,14 @@ llm_train_interface = gr.Interface(
 llm_evaluate_interface = gr.Interface(
     fn=evaluate_llm,
     inputs=[
-        gr.Dropdown(choices=get_available_llm_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
     ],
-    outputs=gr.Textbox(label="Evaluation metrics", type="text"),
-    title="LLM Evaluation",
+    outputs=[
+        gr.Plot(label="Evaluation Metrics"),
+        gr.Textbox(label="Evaluation Status")
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - LLM Evaluation",
     description="Evaluate LLM models on a custom dataset",
     allow_flagging="never",
 )
@@ -280,7 +347,7 @@ llm_evaluate_interface = gr.Interface(
 llm_generate_interface = gr.Interface(
     fn=generate_text,
     inputs=[
-        gr.Dropdown(choices=get_available_llm_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max length"),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
@@ -288,7 +355,7 @@ llm_generate_interface = gr.Interface(
         gr.Slider(minimum=0, maximum=100, value=20, step=1, label="Top K"),
     ],
     outputs=gr.Textbox(label="Generated text", type="text"),
-    title="LLM Text Generation",
+    title="NeuroTrainerWebUI (ALPHA) - LLM Text Generation",
     description="Generate text using LLM models",
     allow_flagging="never",
 )
@@ -306,10 +373,24 @@ system_interface = gr.Interface(
         gr.Textbox(label="RAM Used"),
         gr.Textbox(label="RAM Free"),
     ],
-    title="NeuroSandboxWebUI (ALPHA) - System",
+    title="NeuroTrainerWebUI (ALPHA) - System",
     description="This interface displays system information",
     allow_flagging="never",
 )
 
 with gr.TabbedInterface([llm_train_interface, llm_evaluate_interface, llm_generate_interface, system_interface], ["LLM-Finetune", "LLM-Evaluate", "LLM-Generate", "System"]) as app:
+    close_button = gr.Button("Close terminal")
+    close_button.click(close_terminal, [], [], queue=False)
+
+    folder_button = gr.Button("Folder")
+    folder_button.click(open_finetuned_folder, [], [], queue=False)
+
+    github_link = gr.HTML(
+        '<div style="text-align: center; margin-top: 20px;">'
+        '<a href="https://github.com/Dartvauder/NeuroTrainerWebUI" target="_blank" style="color: blue; text-decoration: none; font-size: 16px;">'
+        'GitHub'
+        '</a>'
+        '</div>'
+    )
+
     app.launch(server_name="localhost", auth=authenticate)

@@ -174,10 +174,36 @@ def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, we
     return f"Training completed. Model saved at: {save_path}", fig
 
 
+def plot_evaluation_metrics(metrics):
+    if metrics is None:
+        return None
+
+    metrics_to_plot = ['loss', 'perplexity', 'eval_runtime', 'eval_samples_per_second', 'eval_steps_per_second']
+    metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    bar_width = 0.6
+    x = range(len(metrics_to_plot))
+    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(metrics_to_plot, rotation=45, ha='right')
+    ax.set_ylabel('Value')
+    ax.set_title('Evaluation Metrics')
+
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3), textcoords='offset points', ha='center', va='bottom')
+
+    fig.tight_layout()
+    return fig
+
+
 def evaluate_llm(model_name, dataset_file):
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
-        return "Error loading model and tokenizer. Please check the model path."
+        return None, "Error loading model and tokenizer. Please check the model path."
 
     dataset_path = os.path.join("datasets/llm", dataset_file)
     try:
@@ -198,24 +224,33 @@ def evaluate_llm(model_name, dataset_file):
         eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
     except Exception as e:
         print(f"Error loading dataset: {e}")
-        return f"Error loading dataset. Please check the dataset path and format. Error: {e}"
+        return None, f"Error loading dataset. Please check the dataset path and format. Error: {e}"
 
     try:
         trainer = Trainer(model=model)
         metrics = trainer.evaluate(eval_dataset)
-        return f"Evaluation metrics: {metrics}"
+
+        required_metrics = ['loss', 'perplexity', 'eval_runtime', 'eval_samples_per_second', 'eval_steps_per_second']
+        extracted_metrics = {metric: metrics[metric] for metric in required_metrics if metric in metrics}
+
+        fig = plot_evaluation_metrics(extracted_metrics)
+
+        model_path = os.path.join("models/llm", model_name)
+        plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
+        fig.savefig(plot_path)
+
+        return fig, f"Evaluation completed successfully. Results saved to {plot_path}"
     except Exception as e:
         print(f"Error during evaluation: {e}")
-        return f"Evaluation failed. Error: {e}"
+        return None, f"Evaluation failed. Error: {e}"
 
 
 def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
-    # Загрузка модели и токенизатора
+
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path."
 
-    # Генерация текста
     try:
         input_ids = tokenizer.encode(prompt, return_tensors='pt')
         attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
@@ -271,7 +306,10 @@ llm_evaluate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
     ],
-    outputs=gr.Textbox(label="Evaluation metrics", type="text"),
+    outputs=[
+        gr.Plot(label="Evaluation Metrics"),
+        gr.Textbox(label="Evaluation Status")
+    ],
     title="LLM Evaluation",
     description="Evaluate LLM models on a custom dataset",
     allow_flagging="never",

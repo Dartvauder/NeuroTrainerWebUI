@@ -1,4 +1,4 @@
-# NeuroTrainerWebUI
+## [Features](/#Features) | [Dependencies](/#Required-Dependencies) | [SystemRequirements](/#Minimum-System-Requirements) | [Install](/#How-to-install) | [Usage](/#How-to-use) | [Models](/#Where-can-I-get-models) | [Wiki](/#Wiki) | [Acknowledgment](/#Acknowledgment-to-developers) | [Licenses](/#Third-Party-Licenses)
 
 * Work in progress!
 * English | [Русский](/README_RU.md)
@@ -9,7 +9,7 @@ A simple and convenient interface for finetuning of various neural network model
 
 The goal of the project - to create the easiest possible application to finetune neural network models
 
-### LLM:
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/3a1b446f-2d37-47a7-9b53-a4097ab5a3e1)
 
 ## Features:
 
@@ -64,13 +64,40 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 #### train:
 
+1) First upload your models to the folder: *models/llm*
+2) Upload your dataset to the folder: *datasets/llm*
+3) Select your model and dataset from the drop-down lists
+4) Set up the model hyper-parameters for finetuning
+5) Click the `Submit` button to receive the finetuned model
+
 #### evaluate:
 
-#### test:
+1) First upload your models to the folder: *finetuned-models/llm*
+2) Upload your dataset to the folder: *datasets/llm*
+3) Select your model and dataset from the drop-down lists
+4) Click the `Submit` button to receive the evaluate of model
+
+#### generate:
+
+1) First upload your models to the folder: *inputs/text/llm_models*
+2) Select your model from the drop-down list
+3) Set up the model according to the parameters you need
+4) Click the `Submit` button to receive the generated text
 
 ### Additional Information:
 
+1) All finetunes are saved in the *finetuned-models* folder
+2) You can press the `Clear` button to reset your selection
+3) You can turn off the application using the `Close terminal` button
+4) You can open the *finetuned-models* folder by clicking on the `Folder` button
+
 ## Where can i get models?
+
+* LLM models can be taken from [HuggingFace](https://huggingface.co/models)
+
+## Wiki
+
+* https://github.com/Dartvauder/NeuroTrainerWebUI/wiki
 
 ## Acknowledgment to developers
 

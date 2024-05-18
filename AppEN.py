@@ -3,6 +3,11 @@ import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
 from datasets import load_dataset
 import matplotlib.pyplot as plt
+import torch
+import psutil
+import GPUtil
+from cpuinfo import get_cpu_info
+from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
 
 
 def authenticate(username, password):
@@ -17,6 +22,27 @@ def authenticate(username, password):
     except Exception as e:
         print(f"Error reading authentication file: {e}")
     return False
+
+
+def get_system_info():
+    gpu = GPUtil.getGPUs()[0]
+    gpu_total_memory = f"{gpu.memoryTotal} MB"
+    gpu_used_memory = f"{gpu.memoryUsed} MB"
+    gpu_free_memory = f"{gpu.memoryFree} MB"
+
+    nvmlInit()
+    handle = nvmlDeviceGetHandleByIndex(0)
+    gpu_temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+
+    cpu_info = get_cpu_info()
+    cpu_temp = cpu_info.get("cpu_temp", None)
+
+    ram = psutil.virtual_memory()
+    ram_total = f"{ram.total // (1024 ** 3)} GB"
+    ram_used = f"{ram.used // (1024 ** 3)} GB"
+    ram_free = f"{ram.available // (1024 ** 3)} GB"
+
+    return gpu_total_memory, gpu_used_memory, gpu_free_memory, gpu_temp, cpu_temp, ram_total, ram_used, ram_free
 
 
 def get_available_llm_models():
@@ -55,7 +81,7 @@ def load_model_and_tokenizer(model_name):
         return None, None
 
 
-def train_llm(model_name, dataset_file, epochs, batch_size, learning_rate, weight_decay, warmup_steps, block_size, grad_accum_steps):
+def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, weight_decay, warmup_steps, block_size, grad_accum_steps):
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path.", None
@@ -148,8 +174,77 @@ def train_llm(model_name, dataset_file, epochs, batch_size, learning_rate, weigh
     return f"Training completed. Model saved at: {save_path}", fig
 
 
+def evaluate_llm(model_name, dataset_file):
+    model, tokenizer = load_model_and_tokenizer(model_name)
+    if model is None or tokenizer is None:
+        return "Error loading model and tokenizer. Please check the model path."
+
+    dataset_path = os.path.join("datasets/llm", dataset_file)
+    try:
+        eval_dataset = load_dataset('json', data_files=dataset_path)
+        eval_dataset = eval_dataset['train']
+
+        def process_examples(examples):
+            input_texts = examples['input'] if 'input' in examples else [''] * len(examples['instruction'])
+            instruction_texts = examples['instruction']
+            output_texts = examples['output']
+
+            texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
+                     input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
+            return tokenizer(texts, truncation=True, padding='max_length', max_length=128)
+
+        eval_dataset = eval_dataset.map(process_examples, batched=True,
+                                        remove_columns=['input', 'instruction', 'output'])
+        eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+    except Exception as e:
+        print(f"Error loading dataset: {e}")
+        return f"Error loading dataset. Please check the dataset path and format. Error: {e}"
+
+    try:
+        trainer = Trainer(model=model)
+        metrics = trainer.evaluate(eval_dataset)
+        return f"Evaluation metrics: {metrics}"
+    except Exception as e:
+        print(f"Error during evaluation: {e}")
+        return f"Evaluation failed. Error: {e}"
+
+
+def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
+    # Загрузка модели и токенизатора
+    model, tokenizer = load_model_and_tokenizer(model_name)
+    if model is None or tokenizer is None:
+        return "Error loading model and tokenizer. Please check the model path."
+
+    # Генерация текста
+    try:
+        input_ids = tokenizer.encode(prompt, return_tensors='pt')
+        attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
+        pad_token_id = tokenizer.eos_token_id
+
+        output = model.generate(
+            input_ids,
+            do_sample=True,
+            attention_mask=attention_mask,
+            pad_token_id=pad_token_id,
+            max_new_tokens=max_length,
+            num_return_sequences=1,
+            top_p=top_p,
+            top_k=top_k,
+            temperature=temperature,
+            repetition_penalty=1.1,
+            num_beams=5,
+            no_repeat_ngram_size=2,
+        )
+
+        generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+        return generated_text
+    except Exception as e:
+        print(f"Error during text generation: {e}")
+        return f"Text generation failed. Error: {e}"
+
+
 llm_train_interface = gr.Interface(
-    fn=train_llm,
+    fn=finetune_llm,
     inputs=[
         gr.Dropdown(choices=get_available_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
@@ -170,6 +265,51 @@ llm_train_interface = gr.Interface(
     allow_flagging="never",
 )
 
+llm_evaluate_interface = gr.Interface(
+    fn=evaluate_llm,
+    inputs=[
+        gr.Dropdown(choices=get_available_llm_models(), label="Model"),
+        gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
+    ],
+    outputs=gr.Textbox(label="Evaluation metrics", type="text"),
+    title="LLM Evaluation",
+    description="Evaluate LLM models on a custom dataset",
+    allow_flagging="never",
+)
 
-with gr.TabbedInterface([llm_train_interface], ["LLM-Train"]) as app:
+llm_generate_interface = gr.Interface(
+    fn=generate_text,
+    inputs=[
+        gr.Dropdown(choices=get_available_llm_models(), label="Model"),
+        gr.Textbox(label="Prompt", type="text"),
+        gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max length"),
+        gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
+        gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, label="Top P"),
+        gr.Slider(minimum=0, maximum=100, value=20, step=1, label="Top K"),
+    ],
+    outputs=gr.Textbox(label="Generated text", type="text"),
+    title="LLM Text Generation",
+    description="Generate text using LLM models",
+    allow_flagging="never",
+)
+
+system_interface = gr.Interface(
+    fn=get_system_info,
+    inputs=[],
+    outputs=[
+        gr.Textbox(label="GPU Total Memory"),
+        gr.Textbox(label="GPU Used Memory"),
+        gr.Textbox(label="GPU Free Memory"),
+        gr.Textbox(label="GPU Temperature"),
+        gr.Textbox(label="CPU Temperature"),
+        gr.Textbox(label="RAM Total"),
+        gr.Textbox(label="RAM Used"),
+        gr.Textbox(label="RAM Free"),
+    ],
+    title="NeuroSandboxWebUI (ALPHA) - System",
+    description="This interface displays system information",
+    allow_flagging="never",
+)
+
+with gr.TabbedInterface([llm_train_interface, llm_evaluate_interface, llm_generate_interface, system_interface], ["LLM-Finetune", "LLM-Evaluate", "LLM-Generate", "System"]) as app:
     app.launch(server_name="localhost", auth=authenticate)

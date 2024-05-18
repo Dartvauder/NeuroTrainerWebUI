@@ -58,6 +58,19 @@ def get_available_llm_models():
     return llm_available_models
 
 
+def get_available_finetuned_models():
+    models_dir = "finetuned-models/llm"
+    os.makedirs(models_dir, exist_ok=True)
+
+    finetuned_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            finetuned_available_models.append(model_name)
+
+    return finetuned_available_models
+
+
 def get_available_llm_datasets():
     datasets_dir = "datasets/llm"
     os.makedirs(datasets_dir, exist_ok=True)
@@ -166,7 +179,7 @@ def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, we
 
     plot_dir = save_dir
     os.makedirs(plot_dir, exist_ok=True)
-    plot_path = os.path.join(save_dir, f"{model_name}_loss_plot.png")
+    plot_path = os.path.join(save_dir, model_name, f"{model_name}_loss_plot.png")
     plt.tight_layout()
     plt.savefig(plot_path)
     plt.close()
@@ -201,6 +214,7 @@ def plot_evaluation_metrics(metrics):
 
 
 def evaluate_llm(model_name, dataset_file):
+    model_path = os.path.join("finetuned-models/llm", model_name)
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
         return None, "Error loading model and tokenizer. Please check the model path."
@@ -235,7 +249,6 @@ def evaluate_llm(model_name, dataset_file):
 
         fig = plot_evaluation_metrics(extracted_metrics)
 
-        model_path = os.path.join("models/llm", model_name)
         plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
         fig.savefig(plot_path)
 
@@ -246,8 +259,8 @@ def evaluate_llm(model_name, dataset_file):
 
 
 def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
-
-    model, tokenizer = load_model_and_tokenizer(model_name)
+    model_path = os.path.join("finetuned-models/llm", model_name)
+    model, tokenizer = load_model_and_tokenizer(model_path)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path."
 
@@ -295,7 +308,7 @@ llm_train_interface = gr.Interface(
         gr.Textbox(label="Training status", type="text"),
         gr.Plot(label="Training Loss")
     ],
-    title="LLM Fine-tuning",
+    title="NeuroTrainerWebUI (ALPHA) - LLM Fine-tuning",
     description="Fine-tune LLM models on a custom dataset",
     allow_flagging="never",
 )
@@ -303,14 +316,14 @@ llm_train_interface = gr.Interface(
 llm_evaluate_interface = gr.Interface(
     fn=evaluate_llm,
     inputs=[
-        gr.Dropdown(choices=get_available_llm_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
     ],
     outputs=[
         gr.Plot(label="Evaluation Metrics"),
         gr.Textbox(label="Evaluation Status")
     ],
-    title="LLM Evaluation",
+    title="NeuroTrainerWebUI (ALPHA) - LLM Evaluation",
     description="Evaluate LLM models on a custom dataset",
     allow_flagging="never",
 )
@@ -318,7 +331,7 @@ llm_evaluate_interface = gr.Interface(
 llm_generate_interface = gr.Interface(
     fn=generate_text,
     inputs=[
-        gr.Dropdown(choices=get_available_llm_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max length"),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
@@ -326,7 +339,7 @@ llm_generate_interface = gr.Interface(
         gr.Slider(minimum=0, maximum=100, value=20, step=1, label="Top K"),
     ],
     outputs=gr.Textbox(label="Generated text", type="text"),
-    title="LLM Text Generation",
+    title="NeuroTrainerWebUI (ALPHA) - LLM Text Generation",
     description="Generate text using LLM models",
     allow_flagging="never",
 )
@@ -344,7 +357,7 @@ system_interface = gr.Interface(
         gr.Textbox(label="RAM Used"),
         gr.Textbox(label="RAM Free"),
     ],
-    title="NeuroSandboxWebUI (ALPHA) - System",
+    title="NeuroTrainerWebUI (ALPHA) - System",
     description="This interface displays system information",
     allow_flagging="never",
 )

@@ -9,7 +9,9 @@ A simple and convenient interface for finetuning of various neural network model
 
 The goal of the project - to create the easiest possible application to finetune neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/3a1b446f-2d37-47a7-9b53-a4097ab5a3e1)
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/0032a8e8-2896-46eb-82ca-79b14a53069e)
+
+### System: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/e7e95f6f-0243-4028-b1c9-bc5d74d1586e)
 
 ## Features:
 

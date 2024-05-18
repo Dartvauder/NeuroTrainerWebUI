@@ -291,6 +291,19 @@ def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
         return f"Text generation failed. Error: {e}"
 
 
+def close_terminal():
+    os._exit(1)
+
+
+def open_finetuned_folder():
+    outputs_folder = "finetuned-models"
+    if os.path.exists(outputs_folder):
+        if os.name == "nt":
+            os.startfile(outputs_folder)
+        else:
+            os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
+
+
 llm_train_interface = gr.Interface(
     fn=finetune_llm,
     inputs=[
@@ -363,4 +376,18 @@ system_interface = gr.Interface(
 )
 
 with gr.TabbedInterface([llm_train_interface, llm_evaluate_interface, llm_generate_interface, system_interface], ["LLM-Finetune", "LLM-Evaluate", "LLM-Generate", "System"]) as app:
+    close_button = gr.Button("Close terminal")
+    close_button.click(close_terminal, [], [], queue=False)
+
+    folder_button = gr.Button("Folder")
+    folder_button.click(open_finetuned_folder, [], [], queue=False)
+
+    github_link = gr.HTML(
+        '<div style="text-align: center; margin-top: 20px;">'
+        '<a href="https://github.com/Dartvauder/NeuroTrainerWebUI" target="_blank" style="color: blue; text-decoration: none; font-size: 16px;">'
+        'GitHub'
+        '</a>'
+        '</div>'
+    )
+
     app.launch(server_name="localhost", auth=authenticate)

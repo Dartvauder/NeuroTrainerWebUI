@@ -378,7 +378,10 @@ system_interface = gr.Interface(
     allow_flagging="never",
 )
 
-with gr.TabbedInterface([llm_train_interface, llm_evaluate_interface, llm_generate_interface, system_interface], ["LLM-Finetune", "LLM-Evaluate", "LLM-Generate", "System"]) as app:
+with gr.TabbedInterface([gr.TabbedInterface([llm_train_interface, llm_evaluate_interface, llm_generate_interface],
+                        tab_names=["Finetune", "Evaluate", "Generate"]),
+                        system_interface],
+                        tab_names=["LLM", "System"]) as app:
     close_button = gr.Button("Close terminal")
     close_button.click(close_terminal, [], [], queue=False)
 

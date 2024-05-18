@@ -1,6 +1,6 @@
 ## [Features](/#Features) | [Dependencies](/#Required-Dependencies) | [SystemRequirements](/#Minimum-System-Requirements) | [Install](/#How-to-install) | [Usage](/#How-to-use) | [Models](/#Where-can-I-get-models) | [Wiki](/#Wiki) | [Acknowledgment](/#Acknowledgment-to-developers) | [Licenses](/#Third-Party-Licenses)
 
-* Work in progress!
+* Work in progress! (ALPHA)
 * English | [Русский](/README_RU.md)
 
 ## Description:

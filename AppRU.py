@@ -8,6 +8,8 @@ import psutil
 import GPUtil
 from cpuinfo import get_cpu_info
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
+import sacrebleu
+from rouge import Rouge
 
 
 def authenticate(username, password):
@@ -195,13 +197,13 @@ def plot_evaluation_metrics(metrics):
     if metrics is None:
         return None
 
-    metrics_to_plot = ['loss', 'perplexity', 'eval_runtime', 'eval_samples_per_second', 'eval_steps_per_second']
+    metrics_to_plot = ['bleu', 'rouge-1', 'rouge-2', 'rouge-l']
     metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
     bar_width = 0.6
     x = range(len(metrics_to_plot))
-    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
+    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'])
 
     ax.set_xticks(x)
     ax.set_xticklabels(metrics_to_plot, rotation=45, ha='right')
@@ -235,21 +237,31 @@ def evaluate_llm(model_name, dataset_file):
 
             texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
                      input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
-            return tokenizer(texts, truncation=True, padding='max_length', max_length=128)
+            return {'input_ids': tokenizer(texts, truncation=True, padding='max_length', max_length=128)['input_ids'],
+                    'attention_mask': tokenizer(texts, truncation=True, padding='max_length', max_length=128)['attention_mask'],
+                    'labels': output_texts}
 
         eval_dataset = eval_dataset.map(process_examples, batched=True,
                                         remove_columns=['input', 'instruction', 'output'])
-        eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+        eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
     except Exception as e:
         print(f"Error loading dataset: {e}")
         return None, f"Error loading dataset. Please check the dataset path and format. Error: {e}"
 
     try:
-        trainer = Trainer(model=model)
-        metrics = trainer.evaluate(eval_dataset)
+        references = eval_dataset['labels']
+        predictions = [generate_text(model_name, tokenizer.decode(example['input_ids'], skip_special_tokens=True), max_length=128, temperature=0.7, top_p=0.9, top_k=20) for example in eval_dataset]
+        bleu_score = sacrebleu.corpus_bleu(predictions, [references]).score
 
-        required_metrics = ['loss', 'perplexity', 'eval_runtime', 'eval_samples_per_second', 'eval_steps_per_second']
-        extracted_metrics = {metric: metrics[metric] for metric in required_metrics if metric in metrics}
+        rouge = Rouge()
+        rouge_scores = rouge.get_scores(predictions, references, avg=True)
+
+        extracted_metrics = {
+            'bleu': bleu_score,
+            'rouge-1': rouge_scores['rouge-1']['f'],
+            'rouge-2': rouge_scores['rouge-2']['f'],
+            'rouge-l': rouge_scores['rouge-l']['f']
+        }
 
         fig = plot_evaluation_metrics(extracted_metrics)
 

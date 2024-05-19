@@ -90,7 +90,7 @@ def load_model_and_tokenizer(model_name, finetuned=False):
         model_path = os.path.join("models/llm", model_name)
     try:
         device = "cuda"
-        model = AutoModelForCausalLM.from_pretrained(model_path, device_map=device, torch_dtype=torch.float16, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(model_path, device_map=device)
         tokenizer = AutoTokenizer.from_pretrained(model_path)
         return model, tokenizer
     except Exception as e:

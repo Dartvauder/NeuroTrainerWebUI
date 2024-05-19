@@ -64,7 +64,7 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 ### LLM - has three sub-tabs:
 
-#### train:
+#### Finetune:
 
 1) First upload your models to the folder: *models/llm*
 2) Upload your dataset to the folder: *datasets/llm*
@@ -72,14 +72,14 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 4) Set up the model hyper-parameters for finetuning
 5) Click the `Submit` button to receive the finetuned model
 
-#### evaluate:
+#### Evaluate:
 
 1) First upload your models to the folder: *finetuned-models/llm*
 2) Upload your dataset to the folder: *datasets/llm*
 3) Select your model and dataset from the drop-down lists
 4) Click the `Submit` button to receive the evaluate of model
 
-#### generate:
+#### Generate:
 
 1) First upload your models to the folder: *inputs/text/llm_models*
 2) Select your model from the drop-down list

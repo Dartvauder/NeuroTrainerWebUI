@@ -93,9 +93,10 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 3) You can turn off the application using the `Close terminal` button
 4) You can open the *finetuned-models* folder by clicking on the `Folder` button
 
-## Where can i get models?
+## Where can i get models and datasets?
 
 * LLM models can be taken from [HuggingFace](https://huggingface.co/models)
+* LLM datasets can be taken from [HuggingFace](https://huggingface.co/datasets)
 
 ## Wiki
 

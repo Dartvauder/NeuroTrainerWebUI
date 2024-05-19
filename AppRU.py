@@ -284,6 +284,9 @@ def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
         attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
         pad_token_id = tokenizer.eos_token_id
 
+        input_ids = input_ids.to(model.device)
+        attention_mask = attention_mask.to(model.device)
+
         output = model.generate(
             input_ids,
             do_sample=True,

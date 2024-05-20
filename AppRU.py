@@ -62,7 +62,7 @@ def get_available_llm_models():
     return llm_available_models
 
 
-def get_available_finetuned_models():
+def get_available_finetuned_llm_models():
     models_dir = "finetuned-models/llm"
     os.makedirs(models_dir, exist_ok=True)
 
@@ -73,6 +73,18 @@ def get_available_finetuned_models():
             finetuned_available_models.append(model_name)
 
     return finetuned_available_models
+
+
+def get_available_llm_datasets():
+    datasets_dir = "datasets/llm"
+    os.makedirs(datasets_dir, exist_ok=True)
+
+    llm_available_datasets = []
+    for dataset_file in os.listdir(datasets_dir):
+        if dataset_file.endswith(".json"):
+            llm_available_datasets.append(dataset_file)
+
+    return llm_available_datasets
 
 
 def get_available_sd_models():
@@ -88,16 +100,17 @@ def get_available_sd_models():
     return sd_available_models
 
 
-def get_available_llm_datasets():
-    datasets_dir = "datasets/llm"
-    os.makedirs(datasets_dir, exist_ok=True)
+def get_available_finetuned_sd_models():
+    models_dir = "finetuned-models/sd"
+    os.makedirs(models_dir, exist_ok=True)
 
-    llm_available_datasets = []
-    for dataset_file in os.listdir(datasets_dir):
-        if dataset_file.endswith(".json"):
-            llm_available_datasets.append(dataset_file)
+    finetuned_sd_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            finetuned_sd_available_models.append(model_name)
 
-    return llm_available_datasets
+    return finetuned_sd_available_models
 
 
 def get_available_sd_datasets():
@@ -414,7 +427,7 @@ llm_train_interface = gr.Interface(
 llm_evaluate_interface = gr.Interface(
     fn=evaluate_llm,
     inputs=[
-        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
     ],
     outputs=[
@@ -429,7 +442,7 @@ llm_evaluate_interface = gr.Interface(
 llm_generate_interface = gr.Interface(
     fn=generate_text,
     inputs=[
-        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max length"),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
@@ -465,7 +478,7 @@ sd_finetune_interface = gr.Interface(
 sd_generate_interface = gr.Interface(
     fn=generate_image,
     inputs=[
-        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Textbox(label="Negative Prompt", type="text"),
         gr.Slider(minimum=1, maximum=150, value=50, step=1, label="Number of Inference Steps"),

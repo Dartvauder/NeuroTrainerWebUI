@@ -447,8 +447,8 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=1, label="Gradient accumulation steps"),
     ],
     outputs=[
-        gr.Textbox(label="Fine-tuning status", type="text"),
-        gr.Plot(label="Training Loss")
+        gr.Textbox(label="Fine-tuning Status", type="text"),
+        gr.Plot(label="Fine-tuning Loss")
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Finetune",
     description="Fine-tune LLM models on a custom dataset",

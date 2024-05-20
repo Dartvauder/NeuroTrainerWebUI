@@ -12,6 +12,7 @@ from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperatur
 import sacrebleu
 from rouge import Rouge
 import subprocess
+from torch_fidelity import calculate_metrics
 
 
 def authenticate(username, password):
@@ -377,6 +378,39 @@ def finetune_sd(model_name, dataset_name, instance_prompt, resolution, train_bat
     return f"Fine-tuning completed. Model saved at: finetuned-models/sd/{model_name}"
 
 
+def evaluate_sd(model_name, dataset_name):
+    model_path = os.path.join("finetuned-models/sd", model_name)
+    dataset_path = os.path.join("datasets/sd", dataset_name)
+
+    # Вычисление метрик с помощью torch-fidelity
+    metrics = calculate_metrics(
+        input1=dataset_path,  # Путь к реальным изображениям
+        input2=model_path,  # Путь к сгенерированным изображениям
+        cuda=True,
+        isc=True,  # Вычислить Inception Score
+        fid=True,  # Вычислить FID Score
+        verbose=False
+    )
+
+    fid_score = metrics['frechet_inception_distance']
+    inception_score = metrics['inception_score_mean']
+
+    # Создание графика
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.bar(["FID Score", "Inception Score"], [fid_score, inception_score])
+    ax.set_ylabel("Score")
+    ax.set_title("Evaluation Metrics")
+    ax.grid(True)
+
+    # Сохранение графика
+    plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    plt.close()
+
+    return f"Evaluation completed. FID Score: {fid_score:.2f}, Inception Score: {inception_score:.2f}", fig
+
+
 def generate_image(model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):
     model_path = os.path.join("finetuned-models/sd", model_name)
 
@@ -475,6 +509,21 @@ sd_finetune_interface = gr.Interface(
     allow_flagging="never",
 )
 
+sd_evaluate_interface = gr.Interface(
+    fn=evaluate_sd,
+    inputs=[
+        gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
+        gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
+    ],
+    outputs=[
+        gr.Textbox(label="Evaluation Status"),
+        gr.Plot(label="Evaluation Metrics"),
+    ],
+    title="Stable Diffusion Model Evaluation",
+    description="Evaluate fine-tuned Stable Diffusion models",
+    allow_flagging="never",
+)
+
 sd_generate_interface = gr.Interface(
     fn=generate_image,
     inputs=[
@@ -512,11 +561,10 @@ system_interface = gr.Interface(
 
 with gr.TabbedInterface([gr.TabbedInterface([llm_train_interface, llm_evaluate_interface, llm_generate_interface],
                         tab_names=["Finetune", "Evaluate", "Generate"]),
-                        gr.TabbedInterface([sd_finetune_interface, sd_generate_interface],
-                        tab_names=["Finetune", "Generate"]),
+                        gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_generate_interface],
+                        tab_names=["Finetune", "Evaluate", "Generate"]),
                         system_interface],
                         tab_names=["LLM", "Stable Diffusion", "System"]) as app:
-    # ...
     close_button = gr.Button("Close terminal")
     close_button.click(close_terminal, [], [], queue=False)
 

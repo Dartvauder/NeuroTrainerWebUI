@@ -1,6 +1,7 @@
 import os
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
+from diffusers import StableDiffusionPipeline, DDPMScheduler
 from datasets import load_dataset
 import matplotlib.pyplot as plt
 import torch
@@ -10,6 +11,8 @@ from cpuinfo import get_cpu_info
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
 import sacrebleu
 from rouge import Rouge
+import subprocess
+from torch_fidelity import calculate_metrics
 
 
 def authenticate(username, password):
@@ -60,7 +63,7 @@ def get_available_llm_models():
     return llm_available_models
 
 
-def get_available_finetuned_models():
+def get_available_finetuned_llm_models():
     models_dir = "finetuned-models/llm"
     os.makedirs(models_dir, exist_ok=True)
 
@@ -83,6 +86,45 @@ def get_available_llm_datasets():
             llm_available_datasets.append(dataset_file)
 
     return llm_available_datasets
+
+
+def get_available_sd_models():
+    models_dir = "models/sd"
+    os.makedirs(models_dir, exist_ok=True)
+
+    sd_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            sd_available_models.append(model_name)
+
+    return sd_available_models
+
+
+def get_available_finetuned_sd_models():
+    models_dir = "finetuned-models/sd"
+    os.makedirs(models_dir, exist_ok=True)
+
+    finetuned_sd_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            finetuned_sd_available_models.append(model_name)
+
+    return finetuned_sd_available_models
+
+
+def get_available_sd_datasets():
+    datasets_dir = "datasets/sd"
+    os.makedirs(datasets_dir, exist_ok=True)
+
+    sd_available_datasets = []
+    for dataset_dir in os.listdir(datasets_dir):
+        dataset_path = os.path.join(datasets_dir, dataset_dir)
+        if os.path.isdir(dataset_path):
+            sd_available_datasets.append(dataset_dir)
+
+    return sd_available_datasets
 
 
 def load_model_and_tokenizer(model_name, finetuned=False):
@@ -309,6 +351,78 @@ def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
         return f"Text generation failed. Error: {e}"
 
 
+def finetune_sd(model_name, dataset_name, instance_prompt, resolution, train_batch_size, gradient_accumulation_steps,
+                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps):
+    model_path = os.path.join("models/sd", model_name)
+    dataset_path = os.path.join("datasets/sd", dataset_name)
+
+    dataset = load_dataset("imagefolder", data_dir=dataset_path)
+
+    args = [
+        "accelerate", "launch", "trainer-scripts/train_dreambooth.py",
+        f"--pretrained_model_name_or_path={model_path}",
+        f"--instance_data_dir={dataset_path}",
+        f"--output_dir=finetuned-models/sd/{model_name}",
+        f"--instance_prompt={instance_prompt}",
+        f"--resolution={resolution}",
+        f"--train_batch_size={train_batch_size}",
+        f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+        f"--learning_rate={learning_rate}",
+        f"--lr_scheduler={lr_scheduler}",
+        f"--lr_warmup_steps={lr_warmup_steps}",
+        f"--max_train_steps={max_train_steps}"
+    ]
+
+    subprocess.run(args)
+
+    return f"Fine-tuning completed. Model saved at: finetuned-models/sd/{model_name}"
+
+
+def evaluate_sd(model_name, dataset_name):
+    model_path = os.path.join("finetuned-models/sd", model_name)
+    dataset_path = os.path.join("datasets/sd", dataset_name)
+
+    # Вычисление метрик с помощью torch-fidelity
+    metrics = calculate_metrics(
+        input1=dataset_path,  # Путь к реальным изображениям
+        input2=model_path,  # Путь к сгенерированным изображениям
+        cuda=True,
+        isc=True,  # Вычислить Inception Score
+        fid=True,  # Вычислить FID Score
+        verbose=False
+    )
+
+    fid_score = metrics['frechet_inception_distance']
+    inception_score = metrics['inception_score_mean']
+
+    # Создание графика
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.bar(["FID Score", "Inception Score"], [fid_score, inception_score])
+    ax.set_ylabel("Score")
+    ax.set_title("Evaluation Metrics")
+    ax.grid(True)
+
+    # Сохранение графика
+    plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    plt.close()
+
+    return f"Evaluation completed. FID Score: {fid_score:.2f}, Inception Score: {inception_score:.2f}", fig
+
+
+def generate_image(model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):
+    model_path = os.path.join("finetuned-models/sd", model_name)
+
+    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16).to("cuda")
+    model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+
+    image = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
+                  guidance_scale=cfg_scale, width=width, height=height).images[0]
+
+    return image
+
+
 def close_terminal():
     os._exit(1)
 
@@ -347,7 +461,7 @@ llm_train_interface = gr.Interface(
 llm_evaluate_interface = gr.Interface(
     fn=evaluate_llm,
     inputs=[
-        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
     ],
     outputs=[
@@ -362,7 +476,7 @@ llm_evaluate_interface = gr.Interface(
 llm_generate_interface = gr.Interface(
     fn=generate_text,
     inputs=[
-        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max length"),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
@@ -372,6 +486,58 @@ llm_generate_interface = gr.Interface(
     outputs=gr.Textbox(label="Generated text", type="text"),
     title="NeuroTrainerWebUI (ALPHA) - LLM Text Generation",
     description="Generate text using LLM models",
+    allow_flagging="never",
+)
+
+sd_finetune_interface = gr.Interface(
+    fn=finetune_sd,
+    inputs=[
+        gr.Dropdown(choices=get_available_sd_models(), label="Model"),
+        gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
+        gr.Textbox(label="Instance Prompt", type="text"),
+        gr.Number(value=512, label="Resolution"),
+        gr.Number(value=1, label="Train Batch Size"),
+        gr.Number(value=1, label="Gradient Accumulation Steps"),
+        gr.Number(value=5e-6, label="Learning Rate"),
+        gr.Textbox(value="constant", label="LR Scheduler"),
+        gr.Number(value=0, label="LR Warmup Steps"),
+        gr.Number(value=400, label="Max Train Steps"),
+    ],
+    outputs=gr.Textbox(label="Fine-tuning Status"),
+    title="Stable Diffusion Fine-tuning",
+    description="Fine-tune Stable Diffusion models on a custom dataset",
+    allow_flagging="never",
+)
+
+sd_evaluate_interface = gr.Interface(
+    fn=evaluate_sd,
+    inputs=[
+        gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
+        gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
+    ],
+    outputs=[
+        gr.Textbox(label="Evaluation Status"),
+        gr.Plot(label="Evaluation Metrics"),
+    ],
+    title="Stable Diffusion Model Evaluation",
+    description="Evaluate fine-tuned Stable Diffusion models",
+    allow_flagging="never",
+)
+
+sd_generate_interface = gr.Interface(
+    fn=generate_image,
+    inputs=[
+        gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
+        gr.Textbox(label="Prompt", type="text"),
+        gr.Textbox(label="Negative Prompt", type="text"),
+        gr.Slider(minimum=1, maximum=150, value=50, step=1, label="Number of Inference Steps"),
+        gr.Slider(minimum=1, maximum=30, value=7.5, step=0.5, label="CFG Scale"),
+        gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Width"),
+        gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Height"),
+    ],
+    outputs=gr.Image(label="Generated Image"),
+    title="Stable Diffusion Image Generation",
+    description="Generate images using fine-tuned Stable Diffusion models",
     allow_flagging="never",
 )
 
@@ -395,8 +561,10 @@ system_interface = gr.Interface(
 
 with gr.TabbedInterface([gr.TabbedInterface([llm_train_interface, llm_evaluate_interface, llm_generate_interface],
                         tab_names=["Finetune", "Evaluate", "Generate"]),
+                        gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_generate_interface],
+                        tab_names=["Finetune", "Evaluate", "Generate"]),
                         system_interface],
-                        tab_names=["LLM", "System"]) as app:
+                        tab_names=["LLM", "Stable Diffusion", "System"]) as app:
     close_button = gr.Button("Close terminal")
     close_button.click(close_terminal, [], [], queue=False)
 

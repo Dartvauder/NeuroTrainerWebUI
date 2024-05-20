@@ -382,27 +382,24 @@ def evaluate_sd(model_name, dataset_name):
     model_path = os.path.join("finetuned-models/sd", model_name)
     dataset_path = os.path.join("datasets/sd", dataset_name)
 
-    # Вычисление метрик с помощью torch-fidelity
     metrics = calculate_metrics(
-        input1=dataset_path,  # Путь к реальным изображениям
-        input2=model_path,  # Путь к сгенерированным изображениям
+        input1=dataset_path,
+        input2=model_path,
         cuda=True,
-        isc=True,  # Вычислить Inception Score
-        fid=True,  # Вычислить FID Score
+        isc=True,
+        fid=True,
         verbose=False
     )
 
     fid_score = metrics['frechet_inception_distance']
     inception_score = metrics['inception_score_mean']
 
-    # Создание графика
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.bar(["FID Score", "Inception Score"], [fid_score, inception_score])
     ax.set_ylabel("Score")
     ax.set_title("Evaluation Metrics")
     ax.grid(True)
 
-    # Сохранение графика
     plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
     plt.tight_layout()
     plt.savefig(plot_path)
@@ -453,7 +450,7 @@ llm_train_interface = gr.Interface(
         gr.Textbox(label="Training status", type="text"),
         gr.Plot(label="Training Loss")
     ],
-    title="NeuroTrainerWebUI (ALPHA) - LLM Fine-tuning",
+    title="NeuroTrainerWebUI (ALPHA) - LLM Finetune",
     description="Fine-tune LLM models on a custom dataset",
     allow_flagging="never",
 )
@@ -468,7 +465,7 @@ llm_evaluate_interface = gr.Interface(
         gr.Plot(label="Evaluation Metrics"),
         gr.Textbox(label="Evaluation Status")
     ],
-    title="NeuroTrainerWebUI (ALPHA) - LLM Evaluation",
+    title="NeuroTrainerWebUI (ALPHA) - LLM-Evaluate",
     description="Evaluate LLM models on a custom dataset",
     allow_flagging="never",
 )
@@ -484,7 +481,7 @@ llm_generate_interface = gr.Interface(
         gr.Slider(minimum=0, maximum=100, value=20, step=1, label="Top K"),
     ],
     outputs=gr.Textbox(label="Generated text", type="text"),
-    title="NeuroTrainerWebUI (ALPHA) - LLM Text Generation",
+    title="NeuroTrainerWebUI (ALPHA) - LLM-Generate",
     description="Generate text using LLM models",
     allow_flagging="never",
 )
@@ -504,7 +501,7 @@ sd_finetune_interface = gr.Interface(
         gr.Number(value=400, label="Max Train Steps"),
     ],
     outputs=gr.Textbox(label="Fine-tuning Status"),
-    title="Stable Diffusion Fine-tuning",
+    title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Finetune",
     description="Fine-tune Stable Diffusion models on a custom dataset",
     allow_flagging="never",
 )
@@ -519,7 +516,7 @@ sd_evaluate_interface = gr.Interface(
         gr.Textbox(label="Evaluation Status"),
         gr.Plot(label="Evaluation Metrics"),
     ],
-    title="Stable Diffusion Model Evaluation",
+    title="NeuroTrainerWebUI (ALPHA) - StabledDiffusion-Evaluate",
     description="Evaluate fine-tuned Stable Diffusion models",
     allow_flagging="never",
 )
@@ -536,7 +533,7 @@ sd_generate_interface = gr.Interface(
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Height"),
     ],
     outputs=gr.Image(label="Generated Image"),
-    title="Stable Diffusion Image Generation",
+    title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Generate",
     description="Generate images using fine-tuned Stable Diffusion models",
     allow_flagging="never",
 )

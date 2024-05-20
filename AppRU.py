@@ -235,7 +235,7 @@ def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, we
     return f"Training completed. Model saved at: {save_path}", fig
 
 
-def plot_evaluation_metrics(metrics):
+def plot_llm_evaluation_metrics(metrics):
     if metrics is None:
         return None
 
@@ -265,7 +265,7 @@ def evaluate_llm(model_name, dataset_file):
     model_path = os.path.join("finetuned-models/llm", model_name)
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
-        return None, "Error loading model and tokenizer. Please check the model path."
+        return "Error loading model and tokenizer. Please check the model path.", None
 
     dataset_path = os.path.join("datasets/llm", dataset_file)
     try:
@@ -288,7 +288,7 @@ def evaluate_llm(model_name, dataset_file):
         eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
     except Exception as e:
         print(f"Error loading dataset: {e}")
-        return None, f"Error loading dataset. Please check the dataset path and format. Error: {e}"
+        return f"Error loading dataset. Please check the dataset path and format. Error: {e}", None
 
     try:
         references = eval_dataset['labels']
@@ -305,15 +305,15 @@ def evaluate_llm(model_name, dataset_file):
             'rouge-l': rouge_scores['rouge-l']['f']
         }
 
-        fig = plot_evaluation_metrics(extracted_metrics)
+        fig = plot_llm_evaluation_metrics(extracted_metrics)
 
         plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
         fig.savefig(plot_path)
 
-        return fig, f"Evaluation completed successfully. Results saved to {plot_path}"
+        return f"Evaluation completed successfully. Results saved to {plot_path}", fig
     except Exception as e:
         print(f"Error during evaluation: {e}")
-        return None, f"Evaluation failed. Error: {e}"
+        return f"Evaluation failed. Error: {e}", None
 
 
 def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
@@ -433,7 +433,7 @@ def open_finetuned_folder():
             os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
 
 
-llm_train_interface = gr.Interface(
+llm_finetune_interface = gr.Interface(
     fn=finetune_llm,
     inputs=[
         gr.Dropdown(choices=get_available_llm_models(), label="Model"),
@@ -447,10 +447,10 @@ llm_train_interface = gr.Interface(
         gr.Number(value=1, label="Gradient accumulation steps"),
     ],
     outputs=[
-        gr.Textbox(label="Training status", type="text"),
+        gr.Textbox(label="Fine-tuning status", type="text"),
         gr.Plot(label="Training Loss")
     ],
-    title="NeuroTrainerWebUI (ALPHA) - LLM Finetune",
+    title="NeuroTrainerWebUI (ALPHA) - LLM-Finetune",
     description="Fine-tune LLM models on a custom dataset",
     allow_flagging="never",
 )
@@ -462,8 +462,8 @@ llm_evaluate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
     ],
     outputs=[
+        gr.Textbox(label="Evaluation Status"),
         gr.Plot(label="Evaluation Metrics"),
-        gr.Textbox(label="Evaluation Status")
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Evaluate",
     description="Evaluate LLM models on a custom dataset",
@@ -527,8 +527,8 @@ sd_generate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Textbox(label="Negative Prompt", type="text"),
-        gr.Slider(minimum=1, maximum=150, value=50, step=1, label="Number of Inference Steps"),
-        gr.Slider(minimum=1, maximum=30, value=7.5, step=0.5, label="CFG Scale"),
+        gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),
+        gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label="CFG"),
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Width"),
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Height"),
     ],
@@ -556,12 +556,12 @@ system_interface = gr.Interface(
     allow_flagging="never",
 )
 
-with gr.TabbedInterface([gr.TabbedInterface([llm_train_interface, llm_evaluate_interface, llm_generate_interface],
+with gr.TabbedInterface([gr.TabbedInterface([llm_finetune_interface, llm_evaluate_interface, llm_generate_interface],
                         tab_names=["Finetune", "Evaluate", "Generate"]),
                         gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_generate_interface],
                         tab_names=["Finetune", "Evaluate", "Generate"]),
                         system_interface],
-                        tab_names=["LLM", "Stable Diffusion", "System"]) as app:
+                        tab_names=["LLM", "StableDiffusion", "System"]) as app:
     close_button = gr.Button("Close terminal")
     close_button.click(close_terminal, [], [], queue=False)
 

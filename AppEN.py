@@ -12,8 +12,8 @@ from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperatur
 import sacrebleu
 from rouge import Rouge
 import subprocess
-from torch_fidelity import calculate_metrics
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+from mauve import compute_mauve
 
 
 def authenticate(username, password):
@@ -240,7 +240,7 @@ def plot_llm_evaluation_metrics(metrics):
     if metrics is None:
         return None
 
-    metrics_to_plot = ['bleu', 'rouge-1', 'rouge-2', 'rouge-l']
+    metrics_to_plot = ['bleu', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve']
     metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -294,16 +294,29 @@ def evaluate_llm(model_name, dataset_file):
     try:
         references = eval_dataset['labels']
         predictions = [generate_text(model_name, tokenizer.decode(example['input_ids'], skip_special_tokens=True), max_length=128, temperature=0.7, top_p=0.9, top_k=20) for example in eval_dataset]
+
         bleu_score = sacrebleu.corpus_bleu(predictions, [references]).score
 
         rouge = Rouge()
         rouge_scores = rouge.get_scores(predictions, references, avg=True)
 
+        max_length = max(len(tokenizer.encode(ref)) for ref in references)
+
+        # Tokenize the references and predictions
+        tokenized_references = tokenizer(references, return_tensors='pt', padding=True, truncation=True,
+                                         max_length=max_length)
+        tokenized_predictions = tokenizer(predictions, return_tensors='pt', padding=True, truncation=True,
+                                          max_length=max_length)
+
+        mauve_result = compute_mauve(tokenized_predictions.input_ids, tokenized_references.input_ids)
+        mauve_score = mauve_result.mauve
+
         extracted_metrics = {
             'bleu': bleu_score,
             'rouge-1': rouge_scores['rouge-1']['f'],
             'rouge-2': rouge_scores['rouge-2']['f'],
-            'rouge-l': rouge_scores['rouge-l']['f']
+            'rouge-l': rouge_scores['rouge-l']['f'],
+            'mauve': mauve_score
         }
 
         fig = plot_llm_evaluation_metrics(extracted_metrics)

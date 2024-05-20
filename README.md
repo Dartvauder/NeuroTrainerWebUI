@@ -5,7 +5,7 @@
 
 ## Description:
 
-A simple and convenient interface for finetuning of various neural network models. You can finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters.
+A simple and convenient interface for using of various neural network models. You can finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also check system sensors
 
 The goal of the project - to create the easiest possible application to finetune neural network models
 

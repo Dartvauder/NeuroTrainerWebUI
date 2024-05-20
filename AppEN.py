@@ -13,6 +13,7 @@ import sacrebleu
 from rouge import Rouge
 import subprocess
 from torch_fidelity import calculate_metrics
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 
 def authenticate(username, password):
@@ -232,7 +233,7 @@ def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, we
     plt.savefig(plot_path)
     plt.close()
 
-    return f"Training completed. Model saved at: {save_path}", fig
+    return f"Fine-tuning completed. Model saved at: {save_path}", fig
 
 
 def plot_llm_evaluation_metrics(metrics):
@@ -375,7 +376,32 @@ def finetune_sd(model_name, dataset_name, instance_prompt, resolution, train_bat
 
     subprocess.run(args)
 
-    return f"Fine-tuning completed. Model saved at: finetuned-models/sd/{model_name}"
+    model_path = os.path.join("finetuned-models/sd", model_name)
+
+    logs_dir = os.path.join(model_path, "logs", "dreambooth")
+    events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
+    latest_event_file = sorted(events_files)[-1]
+    event_file_path = os.path.join(logs_dir, latest_event_file)
+
+    event_acc = EventAccumulator(event_file_path)
+    event_acc.Reload()
+
+    loss_values = [s.value for s in event_acc.Scalars("loss")]
+    steps = [s.step for s in event_acc.Scalars("loss")]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+    ax.set_ylabel('Loss')
+    ax.set_xlabel('Step')
+    ax.set_title('Training Loss')
+    ax.grid(True)
+
+    plot_path = os.path.join(model_path, f"{model_name}_loss_plot.png")
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    plt.close()
+
+    return f"Fine-tuning completed. Model saved at: {model_path}", fig
 
 
 def evaluate_sd(model_name, dataset_name):
@@ -500,7 +526,10 @@ sd_finetune_interface = gr.Interface(
         gr.Number(value=0, label="LR Warmup Steps"),
         gr.Number(value=400, label="Max Train Steps"),
     ],
-    outputs=gr.Textbox(label="Fine-tuning Status"),
+    outputs=[
+        gr.Textbox(label="Fine-tuning Status", type="text"),
+        gr.Plot(label="Fine-tuning Loss")
+    ],
     title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Finetune",
     description="Fine-tune Stable Diffusion models on a custom dataset",
     allow_flagging="never",

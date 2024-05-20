@@ -9,16 +9,20 @@ A simple and convenient interface for finetuning of various neural network model
 
 The goal of the project - to create the easiest possible application to finetune neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/0032a8e8-2896-46eb-82ca-79b14a53069e)
+### LLM: 
 
-### System: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/e7e95f6f-0243-4028-b1c9-bc5d74d1586e)
+### StableDiffusion: 
+
+### System: 
 
 ## Features:
 
 * Easy installation via install.bat(Windows) or install.sh(Linux)
 * Flexible and optimized interface (By Gradio)
 * Authentication via admin:admin (You can enter your login details in the GradioAuth.txt file)
-* Support for Transformers finetune (LLM)
+* Support for Transformers finetune, evaluate and generate (LLM)
+* Support for Diffusers finetune, evaluate and generate (StableDiffusion)
+* Ability to see system sensors
 
 ## Required Dependencies:
 
@@ -60,7 +64,7 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 ## How to use:
 
-#### Interface has one tab: LLM. follow the instructions below
+#### Interface has three tabs: LLM, StableDiffusion and System. Select the one you need and follow the instructions below 
 
 ### LLM - has three sub-tabs:
 
@@ -81,10 +85,32 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 #### Generate:
 
-1) First upload your models to the folder: *inputs/text/llm_models*
-2) Select your model from the drop-down list
-3) Set up the model according to the parameters you need
-4) Click the `Submit` button to receive the generated text
+1) Select your model from the drop-down list
+2) Set up the model according to the parameters you need
+3) Click the `Submit` button to receive the generated text
+
+### StableDiffusion - has three sub-tabs:
+
+#### Finetune:
+
+1) First upload your models to the folder: *models/sd*
+2) Upload your dataset to the folder: *datasets/sd*
+3) Select your model and dataset from the drop-down lists
+4) Set up the model hyper-parameters for finetuning
+5) Click the `Submit` button to receive the finetuned model
+
+#### Evaluate:
+
+1) First upload your models to the folder: *finetuned-models/sd*
+2) Upload your dataset to the folder: *datasets/sd*
+3) Select your model and dataset from the drop-down lists
+4) Click the `Submit` button to receive the evaluate of model
+
+#### Generate:
+
+1) Select your model from the drop-down list
+2) Set up the model according to the parameters you need
+3) Click the `Submit` button to receive the generated image
 
 ### Additional Information:
 
@@ -95,8 +121,8 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 ## Where can i get models and datasets?
 
-* LLM models can be taken from [HuggingFace](https://huggingface.co/models)
-* LLM datasets can be taken from [HuggingFace](https://huggingface.co/datasets)
+* LLM and StableDiffusion models can be taken from [HuggingFace](https://huggingface.co/models)
+* LLM and StableDiffusion datasets can be taken from [HuggingFace](https://huggingface.co/datasets)
 
 ## Wiki
 
@@ -110,12 +136,14 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 
 * `gradio` - https://github.com/gradio-app/gradio
 * `transformers` - https://github.com/huggingface/transformers
+* `diffusers` - https://github.com/huggingface/diffusers
 
 ## Third Party Licenses:
 
 #### Many models have their own license for use. Before using it, I advise you to familiarize yourself with them:
 
 * [Transformers](https://github.com/huggingface/transformers/blob/main/LICENSE)
+* [Diffusers](https://github.com/huggingface/diffusers/blob/main/LICENSE)
 
 ## Donation
 

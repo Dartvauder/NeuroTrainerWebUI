@@ -111,7 +111,6 @@ threadpoolctl==3.5.0
 tokenizers==0.19.1
 tomlkit==0.12.0
 toolz==0.12.1
-torch-fidelity==0.3.0
 torchmetrics==1.4.0.post0
 tqdm==4.66.4
 transformers==4.41.0

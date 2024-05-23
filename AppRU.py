@@ -4,7 +4,13 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLan
 from diffusers import StableDiffusionPipeline, DDPMScheduler
 from datasets import load_dataset
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
+from torchmetrics.image.fid import FrechetInceptionDistance
+from torchmetrics.image.kid import KernelInceptionDistance
+from torchmetrics.image.inception import InceptionScore
+from torchmetrics.image.vif import VisualInformationFidelity
+from torchvision.transforms import Resize
 import psutil
 import GPUtil
 from cpuinfo import get_cpu_info
@@ -424,34 +430,83 @@ def finetune_sd(model_name, dataset_name, instance_prompt, resolution, train_bat
     return f"Fine-tuning completed. Model saved at: {model_path}", fig
 
 
-def evaluate_sd(model_name, dataset_name):
-    model_path = os.path.join("finetuned-models/sd", model_name)
-    dataset_path = os.path.join("datasets/sd", dataset_name)
-
-    metrics = calculate_metrics(
-        input1=dataset_path,
-        input2=model_path,
-        cuda=True,
-        isc=True,
-        fid=True,
-        verbose=False
-    )
-
-    fid_score = metrics['frechet_inception_distance']
-    inception_score = metrics['inception_score_mean']
+def plot_sd_evaluation_metrics(metrics):
+    metrics_to_plot = ["FID", "KID", "Inception Score", "VIF"]
+    metric_values = [metrics[metric] for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.bar(["FID Score", "Inception Score"], [fid_score, inception_score])
-    ax.set_ylabel("Score")
+    bar_width = 0.6
+    x = range(len(metrics_to_plot))
+    bars = ax.bar(x, metric_values, width=bar_width, align="center", color=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"])
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(metrics_to_plot, rotation=45, ha="right")
+    ax.set_ylabel("Value")
     ax.set_title("Evaluation Metrics")
-    ax.grid(True)
+
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f"{height:.2f}", xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3), textcoords="offset points", ha="center", va="bottom")
+
+    fig.tight_layout()
+    return fig
+
+
+def evaluate_sd(model_name, dataset_name):
+    model_path = os.path.join("finetuned-models/sd", model_name)
+    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16).to("cuda")
+    model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+
+    dataset_path = os.path.join("datasets/sd", dataset_name)
+    dataset = load_dataset("imagefolder", data_dir=dataset_path)
+
+    num_samples = len(dataset["train"])
+    subset_size = min(num_samples, 50)
+
+    fid = FrechetInceptionDistance().to("cuda")
+    kid = KernelInceptionDistance(subset_size=subset_size).to("cuda")
+    inception = InceptionScore().to("cuda")
+    vif = VisualInformationFidelity().to("cuda")
+
+    resize = Resize((512, 512))
+
+    for batch in dataset["train"]:
+        image = batch["image"].convert("RGB")
+        image_tensor = torch.from_numpy(np.array(image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
+
+        generated_images = model(prompt="", num_inference_steps=50, output_type="pil").images
+        generated_image = generated_images[0].resize((image.width, image.height))
+        generated_image_tensor = torch.from_numpy(np.array(generated_image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
+
+        fid.update(resize(image_tensor), real=True)
+        fid.update(resize(generated_image_tensor), real=False)
+
+        kid.update(resize(image_tensor), real=True)
+        kid.update(resize(generated_image_tensor), real=False)
+
+        inception.update(resize(generated_image_tensor))
+
+        vif.update(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
+
+    fid_score = fid.compute()
+    kid_score, _ = kid.compute()
+    inception_score, _ = inception.compute()
+    vif_score = vif.compute()
+
+    metrics = {
+        "FID": fid_score.item(),
+        "KID": kid_score.item(),
+        "Inception Score": inception_score.item(),
+        "VIF": vif_score.item()
+    }
+
+    fig = plot_sd_evaluation_metrics(metrics)
 
     plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
-    plt.tight_layout()
-    plt.savefig(plot_path)
-    plt.close()
+    fig.savefig(plot_path)
 
-    return f"Evaluation completed. FID Score: {fid_score:.2f}, Inception Score: {inception_score:.2f}", fig
+    return f"Evaluation completed successfully. Results saved to {plot_path}", fig
 
 
 def generate_image(model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):

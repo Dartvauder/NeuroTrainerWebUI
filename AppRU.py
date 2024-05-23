@@ -1,15 +1,28 @@
 import os
+from git import Repo
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
+from diffusers import StableDiffusionPipeline, DDPMScheduler
 from datasets import load_dataset
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
+from torchmetrics.image.fid import FrechetInceptionDistance
+from torchmetrics.image.kid import KernelInceptionDistance
+from torchmetrics.image.inception import InceptionScore
+from torchmetrics.image.vif import VisualInformationFidelity
+from torchvision.transforms import Resize
+from torchmetrics.multimodal.clip_score import CLIPScore
 import psutil
 import GPUtil
 from cpuinfo import get_cpu_info
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
 import sacrebleu
 from rouge import Rouge
+import subprocess
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+from mauve import compute_mauve
+from sklearn.metrics import accuracy_score, precision_score
 
 
 def authenticate(username, password):
@@ -60,7 +73,7 @@ def get_available_llm_models():
     return llm_available_models
 
 
-def get_available_finetuned_models():
+def get_available_finetuned_llm_models():
     models_dir = "finetuned-models/llm"
     os.makedirs(models_dir, exist_ok=True)
 
@@ -83,6 +96,45 @@ def get_available_llm_datasets():
             llm_available_datasets.append(dataset_file)
 
     return llm_available_datasets
+
+
+def get_available_sd_models():
+    models_dir = "models/sd"
+    os.makedirs(models_dir, exist_ok=True)
+
+    sd_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            sd_available_models.append(model_name)
+
+    return sd_available_models
+
+
+def get_available_finetuned_sd_models():
+    models_dir = "finetuned-models/sd"
+    os.makedirs(models_dir, exist_ok=True)
+
+    finetuned_sd_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            finetuned_sd_available_models.append(model_name)
+
+    return finetuned_sd_available_models
+
+
+def get_available_sd_datasets():
+    datasets_dir = "datasets/sd"
+    os.makedirs(datasets_dir, exist_ok=True)
+
+    sd_available_datasets = []
+    for dataset_dir in os.listdir(datasets_dir):
+        dataset_path = os.path.join(datasets_dir, dataset_dir)
+        if os.path.isdir(dataset_path):
+            sd_available_datasets.append(dataset_dir)
+
+    return sd_available_datasets
 
 
 def load_model_and_tokenizer(model_name, finetuned=False):
@@ -190,14 +242,14 @@ def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, we
     plt.savefig(plot_path)
     plt.close()
 
-    return f"Training completed. Model saved at: {save_path}", fig
+    return f"Fine-tuning completed. Model saved at: {save_path}", fig
 
 
-def plot_evaluation_metrics(metrics):
+def plot_llm_evaluation_metrics(metrics):
     if metrics is None:
         return None
 
-    metrics_to_plot = ['bleu', 'rouge-1', 'rouge-2', 'rouge-l']
+    metrics_to_plot = ['bleu', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision']
     metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -223,7 +275,7 @@ def evaluate_llm(model_name, dataset_file):
     model_path = os.path.join("finetuned-models/llm", model_name)
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
-        return None, "Error loading model and tokenizer. Please check the model path."
+        return "Error loading model and tokenizer. Please check the model path.", None
 
     dataset_path = os.path.join("datasets/llm", dataset_file)
     try:
@@ -246,32 +298,51 @@ def evaluate_llm(model_name, dataset_file):
         eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
     except Exception as e:
         print(f"Error loading dataset: {e}")
-        return None, f"Error loading dataset. Please check the dataset path and format. Error: {e}"
+        return f"Error loading dataset. Please check the dataset path and format. Error: {e}", None
 
     try:
         references = eval_dataset['labels']
         predictions = [generate_text(model_name, tokenizer.decode(example['input_ids'], skip_special_tokens=True), max_length=128, temperature=0.7, top_p=0.9, top_k=20) for example in eval_dataset]
+
         bleu_score = sacrebleu.corpus_bleu(predictions, [references]).score
 
         rouge = Rouge()
         rouge_scores = rouge.get_scores(predictions, references, avg=True)
 
+        max_length = max(len(tokenizer.encode(ref)) for ref in references)
+
+        tokenized_references = tokenizer(references, return_tensors='pt', padding=True, truncation=True,
+                                         max_length=max_length)
+        tokenized_predictions = tokenizer(predictions, return_tensors='pt', padding=True, truncation=True,
+                                          max_length=max_length)
+
+        mauve_result = compute_mauve(tokenized_predictions.input_ids, tokenized_references.input_ids)
+        mauve_score = mauve_result.mauve
+
+        binary_predictions = [1 if pred else 0 for pred in predictions]
+        binary_references = [1 if ref else 0 for ref in references]
+        accuracy = accuracy_score(binary_references, binary_predictions)
+        precision = precision_score(binary_references, binary_predictions)
+
         extracted_metrics = {
             'bleu': bleu_score,
             'rouge-1': rouge_scores['rouge-1']['f'],
             'rouge-2': rouge_scores['rouge-2']['f'],
-            'rouge-l': rouge_scores['rouge-l']['f']
+            'rouge-l': rouge_scores['rouge-l']['f'],
+            'mauve': mauve_score,
+            'accuracy': accuracy,
+            'precision': precision
         }
 
-        fig = plot_evaluation_metrics(extracted_metrics)
+        fig = plot_llm_evaluation_metrics(extracted_metrics)
 
         plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
         fig.savefig(plot_path)
 
-        return fig, f"Evaluation completed successfully. Results saved to {plot_path}"
+        return f"Evaluation completed successfully. Results saved to {plot_path}", fig
     except Exception as e:
         print(f"Error during evaluation: {e}")
-        return None, f"Evaluation failed. Error: {e}"
+        return f"Evaluation failed. Error: {e}", None
 
 
 def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
@@ -309,6 +380,165 @@ def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
         return f"Text generation failed. Error: {e}"
 
 
+def finetune_sd(model_name, dataset_name, instance_prompt, resolution, train_batch_size, gradient_accumulation_steps,
+                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps):
+    model_path = os.path.join("models/sd", model_name)
+    dataset_path = os.path.join("datasets/sd", dataset_name)
+
+    dataset = load_dataset("imagefolder", data_dir=dataset_path)
+
+    args = [
+        "accelerate", "launch", "trainer-scripts/train_dreambooth.py",
+        f"--pretrained_model_name_or_path={model_path}",
+        f"--instance_data_dir={dataset_path}",
+        f"--output_dir=finetuned-models/sd/{model_name}",
+        f"--instance_prompt={instance_prompt}",
+        f"--resolution={resolution}",
+        f"--train_batch_size={train_batch_size}",
+        f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+        f"--learning_rate={learning_rate}",
+        f"--lr_scheduler={lr_scheduler}",
+        f"--lr_warmup_steps={lr_warmup_steps}",
+        f"--max_train_steps={max_train_steps}"
+    ]
+
+    subprocess.run(args)
+
+    model_path = os.path.join("finetuned-models/sd", model_name)
+
+    logs_dir = os.path.join(model_path, "logs", "dreambooth")
+    events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
+    latest_event_file = sorted(events_files)[-1]
+    event_file_path = os.path.join(logs_dir, latest_event_file)
+
+    event_acc = EventAccumulator(event_file_path)
+    event_acc.Reload()
+
+    loss_values = [s.value for s in event_acc.Scalars("loss")]
+    steps = [s.step for s in event_acc.Scalars("loss")]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+    ax.set_ylabel('Loss')
+    ax.set_xlabel('Step')
+    ax.set_title('Training Loss')
+    ax.grid(True)
+
+    plot_path = os.path.join(model_path, f"{model_name}_loss_plot.png")
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    plt.close()
+
+    return f"Fine-tuning completed. Model saved at: {model_path}", fig
+
+
+def plot_sd_evaluation_metrics(metrics):
+    metrics_to_plot = ["FID", "KID", "Inception Score", "VIF", "CLIP Score"]
+    metric_values = [metrics[metric] for metric in metrics_to_plot]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    bar_width = 0.6
+    x = range(len(metrics_to_plot))
+    bars = ax.bar(x, metric_values, width=bar_width, align="center", color=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"])
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(metrics_to_plot, rotation=45, ha="right")
+    ax.set_ylabel("Value")
+    ax.set_title("Evaluation Metrics")
+
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f"{height:.2f}", xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3), textcoords="offset points", ha="center", va="bottom")
+
+    fig.tight_layout()
+    return fig
+
+
+def evaluate_sd(model_name, dataset_name):
+    model_path = os.path.join("finetuned-models/sd", model_name)
+    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
+    model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+
+    dataset_path = os.path.join("datasets/sd", dataset_name)
+    dataset = load_dataset("imagefolder", data_dir=dataset_path)
+
+    num_samples = len(dataset["train"])
+    subset_size = min(num_samples, 50)
+
+    fid = FrechetInceptionDistance().to("cuda")
+    kid = KernelInceptionDistance(subset_size=subset_size).to("cuda")
+    inception = InceptionScore().to("cuda")
+    vif = VisualInformationFidelity().to("cuda")
+
+    clip_model_name = "openai/clip-vit-base-patch16"
+    clip_repo_url = f"https://huggingface.co/{clip_model_name}"
+    clip_repo_dir = os.path.join("trainer-scripts", clip_model_name)
+
+    if not os.path.exists(clip_repo_dir):
+        Repo.clone_from(clip_repo_url, clip_repo_dir)
+
+    clip_score = CLIPScore(model_name_or_path=clip_model_name).to("cuda")
+
+    resize = Resize((512, 512))
+
+    clip_scores = []
+
+    for batch in dataset["train"]:
+        image = batch["image"].convert("RGB")
+        image_tensor = torch.from_numpy(np.array(image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
+
+        generated_images = model(prompt="", num_inference_steps=50, output_type="pil").images
+        generated_image = generated_images[0].resize((image.width, image.height))
+        generated_image_tensor = torch.from_numpy(np.array(generated_image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
+
+        fid.update(resize(image_tensor), real=True)
+        fid.update(resize(generated_image_tensor), real=False)
+
+        kid.update(resize(image_tensor), real=True)
+        kid.update(resize(generated_image_tensor), real=False)
+
+        inception.update(resize(generated_image_tensor))
+
+        vif.update(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
+
+        clip_score_value = clip_score(resize(generated_image_tensor).to(torch.float32), "a photo of a generated image")
+        clip_scores.append(clip_score_value.detach().item())
+
+    fid_score = fid.compute()
+    kid_score, _ = kid.compute()
+    inception_score, _ = inception.compute()
+    vif_score = vif.compute()
+    clip_score_avg = np.mean(clip_scores)
+
+    metrics = {
+        "FID": fid_score.item(),
+        "KID": kid_score.item(),
+        "Inception Score": inception_score.item(),
+        "VIF": vif_score.item(),
+        "CLIP Score": clip_score_avg
+    }
+
+    fig = plot_sd_evaluation_metrics(metrics)
+
+    plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
+    fig.savefig(plot_path)
+
+    return f"Evaluation completed successfully. Results saved to {plot_path}", fig
+
+
+def generate_image(model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):
+    model_path = os.path.join("finetuned-models/sd", model_name)
+
+    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
+    model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+
+    image = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
+                  guidance_scale=cfg_scale, width=width, height=height).images[0]
+
+    return image
+
+
 def close_terminal():
     os._exit(1)
 
@@ -322,7 +552,7 @@ def open_finetuned_folder():
             os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
 
 
-llm_train_interface = gr.Interface(
+llm_finetune_interface = gr.Interface(
     fn=finetune_llm,
     inputs=[
         gr.Dropdown(choices=get_available_llm_models(), label="Model"),
@@ -336,10 +566,10 @@ llm_train_interface = gr.Interface(
         gr.Number(value=1, label="Gradient accumulation steps"),
     ],
     outputs=[
-        gr.Textbox(label="Training status", type="text"),
-        gr.Plot(label="Training Loss")
+        gr.Textbox(label="Fine-tuning Status", type="text"),
+        gr.Plot(label="Fine-tuning Loss")
     ],
-    title="NeuroTrainerWebUI (ALPHA) - LLM Fine-tuning",
+    title="NeuroTrainerWebUI (ALPHA) - LLM-Finetune",
     description="Fine-tune LLM models on a custom dataset",
     allow_flagging="never",
 )
@@ -347,14 +577,14 @@ llm_train_interface = gr.Interface(
 llm_evaluate_interface = gr.Interface(
     fn=evaluate_llm,
     inputs=[
-        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
     ],
     outputs=[
+        gr.Textbox(label="Evaluation Status"),
         gr.Plot(label="Evaluation Metrics"),
-        gr.Textbox(label="Evaluation Status")
     ],
-    title="NeuroTrainerWebUI (ALPHA) - LLM Evaluation",
+    title="NeuroTrainerWebUI (ALPHA) - LLM-Evaluate",
     description="Evaluate LLM models on a custom dataset",
     allow_flagging="never",
 )
@@ -362,7 +592,7 @@ llm_evaluate_interface = gr.Interface(
 llm_generate_interface = gr.Interface(
     fn=generate_text,
     inputs=[
-        gr.Dropdown(choices=get_available_finetuned_models(), label="Model"),
+        gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max length"),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
@@ -370,8 +600,63 @@ llm_generate_interface = gr.Interface(
         gr.Slider(minimum=0, maximum=100, value=20, step=1, label="Top K"),
     ],
     outputs=gr.Textbox(label="Generated text", type="text"),
-    title="NeuroTrainerWebUI (ALPHA) - LLM Text Generation",
+    title="NeuroTrainerWebUI (ALPHA) - LLM-Generate",
     description="Generate text using LLM models",
+    allow_flagging="never",
+)
+
+sd_finetune_interface = gr.Interface(
+    fn=finetune_sd,
+    inputs=[
+        gr.Dropdown(choices=get_available_sd_models(), label="Model"),
+        gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
+        gr.Textbox(label="Instance Prompt", type="text"),
+        gr.Number(value=512, label="Resolution"),
+        gr.Number(value=1, label="Train Batch Size"),
+        gr.Number(value=1, label="Gradient Accumulation Steps"),
+        gr.Number(value=5e-6, label="Learning Rate"),
+        gr.Textbox(value="constant", label="LR Scheduler"),
+        gr.Number(value=0, label="LR Warmup Steps"),
+        gr.Number(value=400, label="Max Train Steps"),
+    ],
+    outputs=[
+        gr.Textbox(label="Fine-tuning Status", type="text"),
+        gr.Plot(label="Fine-tuning Loss")
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Finetune",
+    description="Fine-tune Stable Diffusion models on a custom dataset",
+    allow_flagging="never",
+)
+
+sd_evaluate_interface = gr.Interface(
+    fn=evaluate_sd,
+    inputs=[
+        gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
+        gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
+    ],
+    outputs=[
+        gr.Textbox(label="Evaluation Status"),
+        gr.Plot(label="Evaluation Metrics"),
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - StabledDiffusion-Evaluate",
+    description="Evaluate fine-tuned Stable Diffusion models",
+    allow_flagging="never",
+)
+
+sd_generate_interface = gr.Interface(
+    fn=generate_image,
+    inputs=[
+        gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
+        gr.Textbox(label="Prompt", type="text"),
+        gr.Textbox(label="Negative Prompt", type="text"),
+        gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),
+        gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label="CFG"),
+        gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Width"),
+        gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Height"),
+    ],
+    outputs=gr.Image(label="Generated Image"),
+    title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Generate",
+    description="Generate images using fine-tuned Stable Diffusion models",
     allow_flagging="never",
 )
 
@@ -393,10 +678,12 @@ system_interface = gr.Interface(
     allow_flagging="never",
 )
 
-with gr.TabbedInterface([gr.TabbedInterface([llm_train_interface, llm_evaluate_interface, llm_generate_interface],
+with gr.TabbedInterface([gr.TabbedInterface([llm_finetune_interface, llm_evaluate_interface, llm_generate_interface],
+                        tab_names=["Finetune", "Evaluate", "Generate"]),
+                        gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_generate_interface],
                         tab_names=["Finetune", "Evaluate", "Generate"]),
                         system_interface],
-                        tab_names=["LLM", "System"]) as app:
+                        tab_names=["LLM", "StableDiffusion", "System"]) as app:
     close_button = gr.Button("Close terminal")
     close_button.click(close_terminal, [], [], queue=False)
 

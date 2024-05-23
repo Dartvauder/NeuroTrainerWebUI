@@ -1,4 +1,5 @@
 import os
+from git import Repo
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
 from diffusers import StableDiffusionPipeline, DDPMScheduler
@@ -11,6 +12,7 @@ from torchmetrics.image.kid import KernelInceptionDistance
 from torchmetrics.image.inception import InceptionScore
 from torchmetrics.image.vif import VisualInformationFidelity
 from torchvision.transforms import Resize
+from torchmetrics.multimodal.clip_score import CLIPScore
 import psutil
 import GPUtil
 from cpuinfo import get_cpu_info
@@ -431,7 +433,7 @@ def finetune_sd(model_name, dataset_name, instance_prompt, resolution, train_bat
 
 
 def plot_sd_evaluation_metrics(metrics):
-    metrics_to_plot = ["FID", "KID", "Inception Score", "VIF"]
+    metrics_to_plot = ["FID", "KID", "Inception Score", "VIF", "CLIP Score"]
     metric_values = [metrics[metric] for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -455,7 +457,7 @@ def plot_sd_evaluation_metrics(metrics):
 
 def evaluate_sd(model_name, dataset_name):
     model_path = os.path.join("finetuned-models/sd", model_name)
-    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16).to("cuda")
+    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
     dataset_path = os.path.join("datasets/sd", dataset_name)
@@ -469,7 +471,18 @@ def evaluate_sd(model_name, dataset_name):
     inception = InceptionScore().to("cuda")
     vif = VisualInformationFidelity().to("cuda")
 
+    clip_model_name = "openai/clip-vit-base-patch16"
+    clip_repo_url = f"https://huggingface.co/{clip_model_name}"
+    clip_repo_dir = os.path.join("trainer-scripts", clip_model_name)
+
+    if not os.path.exists(clip_repo_dir):
+        Repo.clone_from(clip_repo_url, clip_repo_dir)
+
+    clip_score = CLIPScore(model_name_or_path=clip_model_name).to("cuda")
+
     resize = Resize((512, 512))
+
+    clip_scores = []
 
     for batch in dataset["train"]:
         image = batch["image"].convert("RGB")
@@ -489,16 +502,21 @@ def evaluate_sd(model_name, dataset_name):
 
         vif.update(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
 
+        clip_score_value = clip_score(resize(generated_image_tensor).to(torch.float32), "a photo of a generated image")
+        clip_scores.append(clip_score_value.detach().item())
+
     fid_score = fid.compute()
     kid_score, _ = kid.compute()
     inception_score, _ = inception.compute()
     vif_score = vif.compute()
+    clip_score_avg = np.mean(clip_scores)
 
     metrics = {
         "FID": fid_score.item(),
         "KID": kid_score.item(),
         "Inception Score": inception_score.item(),
-        "VIF": vif_score.item()
+        "VIF": vif_score.item(),
+        "CLIP Score": clip_score_avg
     }
 
     fig = plot_sd_evaluation_metrics(metrics)
@@ -512,7 +530,7 @@ def evaluate_sd(model_name, dataset_name):
 def generate_image(model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):
     model_path = os.path.join("finetuned-models/sd", model_name)
 
-    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16).to("cuda")
+    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
     image = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,

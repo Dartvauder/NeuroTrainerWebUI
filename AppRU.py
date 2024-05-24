@@ -214,7 +214,7 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
 
     os.makedirs(save_dir, exist_ok=True)
 
-    save_path = os.path.join(save_dir, model_output_name)
+    save_path = save_dir
 
     training_args = TrainingArguments(
         output_dir=save_path,
@@ -281,7 +281,7 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
 
     plot_dir = save_dir
     os.makedirs(plot_dir, exist_ok=True)
-    plot_path = os.path.join(save_dir, model_name, f"{model_name}_loss_plot.png")
+    plot_path = os.path.join(save_dir, f"{model_output_name}_loss_plot.png")
     plt.tight_layout()
     plt.savefig(plot_path)
     plt.close()

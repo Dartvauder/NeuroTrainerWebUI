@@ -7,7 +7,7 @@
 
 A simple and convenient interface for using of various neural network models. You can finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also check system sensors
 
-The goal of the project - to create the easiest possible application to finetune, evaluate and generate with neural network models
+The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
 ### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/80b62b35-38c5-46cb-824a-a05513cb2c4a)
 

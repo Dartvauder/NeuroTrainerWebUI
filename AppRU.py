@@ -91,13 +91,13 @@ def get_available_finetuned_llm_models():
     models_dir = "finetuned-models/llm/full"
     os.makedirs(models_dir, exist_ok=True)
 
-    finetuned_available_models = []
+    finetuned_available_llm_models = []
     for model_name in os.listdir(models_dir):
         model_path = os.path.join(models_dir, model_name)
         if os.path.isdir(model_path):
-            finetuned_available_models.append(model_name)
+            finetuned_available_llm_models.append(model_name)
 
-    return finetuned_available_models
+    return finetuned_available_llm_models
 
 
 def get_available_llm_datasets():
@@ -166,7 +166,7 @@ def get_available_sd_datasets():
 
 def load_model_and_tokenizer(model_name, finetuned=False):
     if finetuned:
-        model_path = os.path.join("finetuned-models/llm", model_name)
+        model_path = os.path.join("finetuned-models/llm/full", model_name)
     else:
         model_path = os.path.join("models/llm", model_name)
     try:

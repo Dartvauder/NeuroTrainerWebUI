@@ -380,56 +380,106 @@ def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
         return f"Text generation failed. Error: {e}"
 
 
-def finetune_sd(model_name, dataset_name, instance_prompt, resolution, train_batch_size, gradient_accumulation_steps,
-                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps):
+def finetune_sd(model_name, dataset_name, finetune_method, instance_prompt, resolution, train_batch_size, gradient_accumulation_steps,
+                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, checkpointing_steps, validation_epochs):
     model_path = os.path.join("models/sd", model_name)
     dataset_path = os.path.join("datasets/sd", dataset_name)
 
-    dataset = load_dataset("imagefolder", data_dir=dataset_path)
-
-    args = [
-        "accelerate", "launch", "trainer-scripts/train_dreambooth.py",
-        f"--pretrained_model_name_or_path={model_path}",
-        f"--instance_data_dir={dataset_path}",
-        f"--output_dir=finetuned-models/sd/{model_name}",
-        f"--instance_prompt={instance_prompt}",
-        f"--resolution={resolution}",
-        f"--train_batch_size={train_batch_size}",
-        f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-        f"--learning_rate={learning_rate}",
-        f"--lr_scheduler={lr_scheduler}",
-        f"--lr_warmup_steps={lr_warmup_steps}",
-        f"--max_train_steps={max_train_steps}"
-    ]
+    if finetune_method == "Full":
+        output_dir = os.path.join("finetuned-models/sd/full", model_name)
+        args = [
+            "accelerate", "launch", "trainer-scripts/train_dreambooth.py",
+            f"--pretrained_model_name_or_path={model_path}",
+            f"--instance_data_dir={dataset_path}",
+            f"--output_dir={output_dir}",
+            f"--instance_prompt={instance_prompt}",
+            f"--resolution={resolution}",
+            f"--train_batch_size={train_batch_size}",
+            f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+            f"--learning_rate={learning_rate}",
+            f"--lr_scheduler={lr_scheduler}",
+            f"--lr_warmup_steps={lr_warmup_steps}",
+            f"--max_train_steps={max_train_steps}",
+            f"--mixed_precision=no",
+            f"--seed=0"
+        ]
+    elif finetune_method == "LORA":
+        output_dir = os.path.join("finetuned-models/sd/lora", model_name)
+        args = [
+            "accelerate", "launch", "trainer-scripts/train_dreambooth_lora.py",
+            f"--pretrained_model_name_or_path={model_path}",
+            f"--instance_data_dir={dataset_path}",
+            f"--output_dir={output_dir}",
+            f"--instance_prompt={instance_prompt}",
+            f"--resolution={resolution}",
+            f"--train_batch_size={train_batch_size}",
+            f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+            f"--checkpointing_steps={checkpointing_steps}",
+            f"--learning_rate={learning_rate}",
+            f"--lr_scheduler={lr_scheduler}",
+            f"--lr_warmup_steps={lr_warmup_steps}",
+            f"--max_train_steps={max_train_steps}",
+            f"--validation_prompt={instance_prompt}",
+            f"--validation_epochs={validation_epochs}",
+            f"--mixed_precision=no",
+            f"--seed=0"
+        ]
+    else:
+        raise ValueError(f"Invalid finetune method: {finetune_method}")
 
     subprocess.run(args)
 
-    model_path = os.path.join("finetuned-models/sd", model_name)
+    if finetune_method == "Full":
+        logs_dir = os.path.join(output_dir, "logs", "dreambooth")
+        events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
+        latest_event_file = sorted(events_files)[-1]
+        event_file_path = os.path.join(logs_dir, latest_event_file)
 
-    logs_dir = os.path.join(model_path, "logs", "dreambooth")
-    events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
-    latest_event_file = sorted(events_files)[-1]
-    event_file_path = os.path.join(logs_dir, latest_event_file)
+        event_acc = EventAccumulator(event_file_path)
+        event_acc.Reload()
 
-    event_acc = EventAccumulator(event_file_path)
-    event_acc.Reload()
+        loss_values = [s.value for s in event_acc.Scalars("loss")]
+        steps = [s.step for s in event_acc.Scalars("loss")]
 
-    loss_values = [s.value for s in event_acc.Scalars("loss")]
-    steps = [s.step for s in event_acc.Scalars("loss")]
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+        ax.set_ylabel('Loss')
+        ax.set_xlabel('Step')
+        ax.set_title('Training Loss')
+        ax.grid(True)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
-    ax.set_ylabel('Loss')
-    ax.set_xlabel('Step')
-    ax.set_title('Training Loss')
-    ax.grid(True)
+        plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
+        plt.tight_layout()
+        plt.savefig(plot_path)
+        plt.close()
 
-    plot_path = os.path.join(model_path, f"{model_name}_loss_plot.png")
-    plt.tight_layout()
-    plt.savefig(plot_path)
-    plt.close()
+        return f"Fine-tuning completed. Model saved at: {output_dir}", fig
 
-    return f"Fine-tuning completed. Model saved at: {model_path}", fig
+    elif finetune_method == "LORA":
+        logs_dir = os.path.join(output_dir, "logs", "dreambooth-lora")
+        events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
+        latest_event_file = sorted(events_files)[-1]
+        event_file_path = os.path.join(logs_dir, latest_event_file)
+
+        event_acc = EventAccumulator(event_file_path)
+        event_acc.Reload()
+
+        loss_values = [s.value for s in event_acc.Scalars("loss")]
+        steps = [s.step for s in event_acc.Scalars("loss")]
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+        ax.set_ylabel('Loss')
+        ax.set_xlabel('Step')
+        ax.set_title('Training Loss')
+        ax.grid(True)
+
+        plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
+        plt.tight_layout()
+        plt.savefig(plot_path)
+        plt.close()
+
+        return f"Fine-tuning completed. Model saved at: {output_dir}", fig
 
 
 def plot_sd_evaluation_metrics(metrics):
@@ -456,7 +506,7 @@ def plot_sd_evaluation_metrics(metrics):
 
 
 def evaluate_sd(model_name, dataset_name, user_prompt, num_inference_steps, cfg_scale):
-    model_path = os.path.join("finetuned-models/sd", model_name)
+    model_path = os.path.join("finetuned-models/sd/full", model_name)
     model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
@@ -528,7 +578,7 @@ def evaluate_sd(model_name, dataset_name, user_prompt, num_inference_steps, cfg_
 
 
 def generate_image(model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):
-    model_path = os.path.join("finetuned-models/sd", model_name)
+    model_path = os.path.join("finetuned-models/sd/full", model_name)
 
     model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
@@ -615,6 +665,7 @@ sd_finetune_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_sd_models(), label="Model"),
         gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
+        gr.Radio(choices=["Full", "LORA"], value="Full", label="Finetune Method"),
         gr.Textbox(label="Instance Prompt", type="text"),
         gr.Number(value=512, label="Resolution"),
         gr.Number(value=1, label="Train Batch Size"),
@@ -623,6 +674,8 @@ sd_finetune_interface = gr.Interface(
         gr.Textbox(value="constant", label="LR Scheduler"),
         gr.Number(value=0, label="LR Warmup Steps"),
         gr.Number(value=400, label="Max Train Steps"),
+        gr.Number(value=100, label="Checkpointing Steps (LORA)"),
+        gr.Number(value=50, label="Validation Epochs (LORA)"),
     ],
     outputs=[
         gr.Textbox(label="Fine-tuning Status", type="text"),

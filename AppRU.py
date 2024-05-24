@@ -374,7 +374,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
         predictions = [generate_text(model_name, lora_model_name,
                                      user_input if user_input else tokenizer.decode(example['input_ids'],
                                                                                     skip_special_tokens=True),
-                                     max_length, temperature, top_p, top_k) for example in eval_dataset]
+                                     max_length, temperature, top_p, top_k, output_format='txt')[0] for example in eval_dataset]
 
         bleu_score = sacrebleu.corpus_bleu(predictions, [references]).score
 

@@ -579,7 +579,7 @@ llm_evaluate_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
-        gr.Textbox(label="User Input", type="text"),
+        gr.Textbox(label="Request", type="text"),
         gr.Slider(minimum=1, maximum=2048, value=128, step=1, label="Max Length"),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
         gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, label="Top P"),
@@ -598,7 +598,7 @@ llm_generate_interface = gr.Interface(
     fn=generate_text,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
-        gr.Textbox(label="Prompt", type="text"),
+        gr.Textbox(label="Request", type="text"),
         gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max length"),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
         gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, label="Top P"),

@@ -111,8 +111,21 @@ def get_available_sd_models():
     return sd_available_models
 
 
+def get_available_sd_lora_models():
+    models_dir = "finetuned-models/sd/lora"
+    os.makedirs(models_dir, exist_ok=True)
+
+    sd_lora_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            sd_lora_available_models.append(model_name)
+
+    return sd_lora_available_models
+
+
 def get_available_finetuned_sd_models():
-    models_dir = "finetuned-models/sd"
+    models_dir = "finetuned-models/sd/full"
     os.makedirs(models_dir, exist_ok=True)
 
     finetuned_sd_available_models = []
@@ -577,11 +590,15 @@ def evaluate_sd(model_name, dataset_name, user_prompt, num_inference_steps, cfg_
     return f"Evaluation completed successfully. Results saved to {plot_path}", fig
 
 
-def generate_image(model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):
+def generate_image(model_name, lora_model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
 
     model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+
+    if lora_model_name:
+        lora_model_path = os.path.join("finetuned-models/sd/lora", lora_model_name)
+        model.unet.load_attn_procs(lora_model_path)
 
     image = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
                   guidance_scale=cfg_scale, width=width, height=height).images[0]
@@ -708,6 +725,7 @@ sd_generate_interface = gr.Interface(
     fn=generate_image,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
+        gr.Dropdown(choices=get_available_sd_lora_models(), label="LORA Model (optional)"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Textbox(label="Negative Prompt", type="text"),
         gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),

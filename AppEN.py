@@ -8,6 +8,7 @@ from datasets import load_dataset
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from bert_score import score
 import json
 from datetime import datetime
 from torchmetrics.image.fid import FrechetInceptionDistance
@@ -304,7 +305,7 @@ def plot_llm_evaluation_metrics(metrics):
     if metrics is None:
         return None
 
-    metrics_to_plot = ['bleu', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision']
+    metrics_to_plot = ['bleu', 'bert_score', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision']
     metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -376,7 +377,20 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
                                                                                     skip_special_tokens=True),
                                      max_length, temperature, top_p, top_k, output_format='txt')[0] for example in eval_dataset]
 
+        bert_model_name = "google-bert/bert-base-uncased"
+        bert_repo_url = f"https://huggingface.co/{bert_model_name}"
+        bert_repo_dir = os.path.join("trainer-scripts", bert_model_name)
+
+        if not os.path.exists(bert_repo_dir):
+            Repo.clone_from(bert_repo_url, bert_repo_dir)
+
+        predictions = [pred.strip() for pred in predictions if pred.strip()]
+        references = [ref.strip() for ref in references if ref.strip()]
+
         bleu_score = sacrebleu.corpus_bleu(predictions, [references]).score
+
+        P, R, F1 = score(predictions, references, lang='en', model_type=bert_model_name, num_layers=12)
+        bert_score = F1.mean().item()
 
         rouge = Rouge()
         rouge_scores = rouge.get_scores(predictions, references, avg=True)
@@ -398,6 +412,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
 
         extracted_metrics = {
             'bleu': bleu_score,
+            'bert_score': bert_score,
             'rouge-1': rouge_scores['rouge-1']['f'],
             'rouge-2': rouge_scores['rouge-2']['f'],
             'rouge-l': rouge_scores['rouge-l']['f'],
@@ -465,12 +480,12 @@ def generate_text(model_name, lora_model_name, prompt, max_length, temperature, 
         output_path = os.path.join(output_dir, output_file)
 
         if output_format == "txt":
-            with open(output_path, "a") as file:
+            with open(output_path, "a", encoding="utf-8") as file:
                 file.write(f"Human: {prompt}\nAI: {generated_text}\n")
         elif output_format == "json":
             history = [{"Human": prompt, "AI": generated_text}]
-            with open(output_path, "w") as file:
-                json.dump(history, file, indent=2)
+            with open(output_path, "w", encoding="utf-8") as file:
+                json.dump(history, file, indent=2, ensure_ascii=False)
 
         return generated_text, "Text generation successful"
     except Exception as e:

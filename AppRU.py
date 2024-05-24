@@ -2,7 +2,7 @@ import os
 from git import Repo
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, PeftModel
 from diffusers import StableDiffusionPipeline, DDPMScheduler
 from datasets import load_dataset
 import matplotlib.pyplot as plt
@@ -395,6 +395,10 @@ def generate_text(model_name, lora_model_name, prompt, max_length, temperature, 
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path."
+
+    if lora_model_name:
+        lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
+        model = PeftModel.from_pretrained(model, lora_model_path)
 
     try:
         input_ids = tokenizer.encode(prompt, return_tensors='pt')

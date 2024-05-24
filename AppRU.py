@@ -1,36 +1,3 @@
-import os
-from git import Repo
-import gradio as gr
-from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
-from diffusers import StableDiffusionPipeline, DDPMScheduler
-from datasets import load_dataset
-import matplotlib.pyplot as plt
-import numpy as np
-import torch
-from torchmetrics.image.fid import FrechetInceptionDistance
-from torchmetrics.image.kid import KernelInceptionDistance
-from torchmetrics.image.inception import InceptionScore
-from torchmetrics.image.vif import VisualInformationFidelity
-from torchvision.transforms import Resize
-from torchmetrics.multimodal.clip_score import CLIPScore
-import psutil
-import GPUtil
-from cpuinfo import get_cpu_info
-from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
-import sacrebleu
-from rouge import Rouge
-import subprocess
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-from mauve import compute_mauve
-from sklearn.metrics import accuracy_score, precision_score
-
-
-def authenticate(username, password):
-    try:
-        with open("GradioAuth.txt", "r") as file:
-            stored_credentials = file.read().strip().split(":")
-            if len(stored_credentials) == 2:
-                stored_username, stored_password = stored_credentials
                 return username == stored_username and password == stored_password
     except FileNotFoundError:
         print("Authentication file not found.")
@@ -399,7 +366,7 @@ def finetune_sd(model_name, dataset_name, finetune_method, instance_prompt, reso
             f"--learning_rate={learning_rate}",
             f"--lr_scheduler={lr_scheduler}",
             f"--lr_warmup_steps={lr_warmup_steps}",
-            f"--max_train_steps={max_train_steps}"
+            f"--max_train_steps={max_train_steps}",
             f"--mixed_precision=no",
             f"--seed=0"
         ]
@@ -674,8 +641,8 @@ sd_finetune_interface = gr.Interface(
         gr.Textbox(value="constant", label="LR Scheduler"),
         gr.Number(value=0, label="LR Warmup Steps"),
         gr.Number(value=400, label="Max Train Steps"),
-        gr.Number(value=100, label="Checkpointing Steps"),
-        gr.Number(value=50, label="Validation Epochs"),
+        gr.Number(value=100, label="Checkpointing Steps (LORA)"),
+        gr.Number(value=50, label="Validation Epochs (LORA)"),
     ],
     outputs=[
         gr.Textbox(label="Fine-tuning Status", type="text"),

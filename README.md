@@ -9,11 +9,13 @@ A simple and convenient interface for using of various neural network models. Yo
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/80b62b35-38c5-46cb-824a-a05513cb2c4a)
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/75a89ffe-fdd2-4d59-9839-a35b41f1873f)
 
-### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/2b00cbf9-1569-4c9e-afa7-68679edd6a79)
+### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/ae900d93-b73e-4731-af5c-f792c7eb3ba2)
 
-### System: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/1382c12a-f2af-4d2c-ab4f-6e9345b107cc)
+### Settings: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/fb4eaa23-5ca8-49c7-a86f-77198a79a79e)
+
+### System: ![4](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/fcbd172a-2ca7-4692-ac7f-0045f7080076)
 
 ## Features:
 
@@ -23,6 +25,7 @@ The goal of the project - to create the easiest possible application to finetune
 * Support for Transformers finetune, evaluate and generate (LLM)
 * Support for Diffusers finetune, evaluate and generate (StableDiffusion)
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
+* Application settings
 * Ability to see system sensors
 
 ## Required Dependencies:
@@ -65,7 +68,7 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 ## How to use:
 
-#### Interface has three tabs: LLM, StableDiffusion and System. Select the one you need and follow the instructions below 
+#### Interface has four tabs: LLM, StableDiffusion, Settings and System. Select the one you need and follow the instructions below 
 
 ### LLM - has three sub-tabs:
 
@@ -118,6 +121,14 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 2) Set up the models according to the parameters you need
 3) Set up the models parameters to generate
 4) Click the `Submit` button to receive the generated image
+
+### Settings: 
+
+* Here you can change the application settings. For now you can only change `Share` mode to `True` or `False`
+
+### System: 
+
+* Here you can see the indicators of your computer's sensors by clicking on the `Submit` button
 
 ### Additional Information:
 

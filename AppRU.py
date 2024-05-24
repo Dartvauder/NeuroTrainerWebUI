@@ -271,7 +271,7 @@ def plot_llm_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_llm(model_name, dataset_file):
+def evaluate_llm(model_name, dataset_file, user_input, max_length, temperature, top_p, top_k):
     model_path = os.path.join("finetuned-models/llm", model_name)
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
@@ -302,7 +302,7 @@ def evaluate_llm(model_name, dataset_file):
 
     try:
         references = eval_dataset['labels']
-        predictions = [generate_text(model_name, tokenizer.decode(example['input_ids'], skip_special_tokens=True), max_length=128, temperature=0.7, top_p=0.9, top_k=20) for example in eval_dataset]
+        predictions = [generate_text(model_name, user_input if user_input else tokenizer.decode(example['input_ids'], skip_special_tokens=True), max_length, temperature, top_p, top_k) for example in eval_dataset]
 
         bleu_score = sacrebleu.corpus_bleu(predictions, [references]).score
 
@@ -455,7 +455,7 @@ def plot_sd_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_sd(model_name, dataset_name):
+def evaluate_sd(model_name, dataset_name, user_prompt, num_inference_steps, cfg_scale):
     model_path = os.path.join("finetuned-models/sd", model_name)
     model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
@@ -488,7 +488,7 @@ def evaluate_sd(model_name, dataset_name):
         image = batch["image"].convert("RGB")
         image_tensor = torch.from_numpy(np.array(image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
 
-        generated_images = model(prompt="", num_inference_steps=50, output_type="pil").images
+        generated_images = model(prompt=user_prompt, num_inference_steps=num_inference_steps, guidance_scale=cfg_scale, output_type="pil").images
         generated_image = generated_images[0].resize((image.width, image.height))
         generated_image_tensor = torch.from_numpy(np.array(generated_image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
 
@@ -579,6 +579,11 @@ llm_evaluate_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
+        gr.Textbox(label="User Input", type="text"),
+        gr.Slider(minimum=1, maximum=2048, value=128, step=1, label="Max Length"),
+        gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
+        gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, label="Top P"),
+        gr.Slider(minimum=0, maximum=100, value=20, step=1, label="Top K"),
     ],
     outputs=[
         gr.Textbox(label="Evaluation Status"),
@@ -633,6 +638,9 @@ sd_evaluate_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
         gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
+        gr.Textbox(label="Prompt", type="text"),
+        gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),
+        gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label="CFG"),
     ],
     outputs=[
         gr.Textbox(label="Evaluation Status"),

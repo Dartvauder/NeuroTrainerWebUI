@@ -1,3 +1,36 @@
+import os
+from git import Repo
+import gradio as gr
+from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
+from diffusers import StableDiffusionPipeline, DDPMScheduler
+from datasets import load_dataset
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from torchmetrics.image.fid import FrechetInceptionDistance
+from torchmetrics.image.kid import KernelInceptionDistance
+from torchmetrics.image.inception import InceptionScore
+from torchmetrics.image.vif import VisualInformationFidelity
+from torchvision.transforms import Resize
+from torchmetrics.multimodal.clip_score import CLIPScore
+import psutil
+import GPUtil
+from cpuinfo import get_cpu_info
+from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
+import sacrebleu
+from rouge import Rouge
+import subprocess
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+from mauve import compute_mauve
+from sklearn.metrics import accuracy_score, precision_score
+
+
+def authenticate(username, password):
+    try:
+        with open("GradioAuth.txt", "r") as file:
+            stored_credentials = file.read().strip().split(":")
+            if len(stored_credentials) == 2:
+                stored_username, stored_password = stored_credentials
                 return username == stored_username and password == stored_password
     except FileNotFoundError:
         print("Authentication file not found.")

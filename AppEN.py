@@ -305,7 +305,7 @@ def plot_llm_evaluation_metrics(metrics):
     if metrics is None:
         return None
 
-    metrics_to_plot = ['bleu', 'bert_score', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision']
+    metrics_to_plot = ['bleu', 'bert', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision']
     metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -412,7 +412,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
 
         extracted_metrics = {
             'bleu': bleu_score,
-            'bert_score': bert_score,
+            'bert': bert_score,
             'rouge-1': rouge_scores['rouge-1']['f'],
             'rouge-2': rouge_scores['rouge-2']['f'],
             'rouge-l': rouge_scores['rouge-l']['f'],

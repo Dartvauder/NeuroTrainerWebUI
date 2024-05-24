@@ -7,7 +7,7 @@
 
 A simple and convenient interface for using of various neural network models. You can finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also check system sensors
 
-The goal of the project - to create the easiest possible application to finetune neural network models
+The goal of the project - to create the easiest possible application to finetune, evaluate and generate with neural network models
 
 ### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/ebcbe211-1b40-489f-90ec-f5f142d2078f)
 
@@ -81,13 +81,15 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 1) First upload your models to the folder: *finetuned-models/llm*
 2) Upload your dataset to the folder: *datasets/llm*
 3) Select your model and dataset from the drop-down lists
-4) Click the `Submit` button to receive the evaluate of model
+4) Set up the model parameters for evaluate
+5) Click the `Submit` button to receive the evaluate of model
 
 #### Generate:
 
 1) Select your model from the drop-down list
 2) Set up the model according to the parameters you need
-3) Click the `Submit` button to receive the generated text
+3) Set up the model parameters to generate
+4) Click the `Submit` button to receive the generated text
 
 ### StableDiffusion - has three sub-tabs:
 
@@ -104,13 +106,15 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 1) First upload your models to the folder: *finetuned-models/sd*
 2) Upload your dataset to the folder: *datasets/sd*
 3) Select your model and dataset from the drop-down lists
-4) Click the `Submit` button to receive the evaluate of model
+4) Set up the model parameters for evaluate
+5) Click the `Submit` button to receive the evaluate of model
 
 #### Generate:
 
 1) Select your model from the drop-down list
 2) Set up the model according to the parameters you need
-3) Click the `Submit` button to receive the generated image
+3) Set up the model parameters to generate
+4) Click the `Submit` button to receive the generated image
 
 ### Additional Information:
 

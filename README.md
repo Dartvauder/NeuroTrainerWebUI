@@ -162,6 +162,8 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 
 * [Transformers](https://github.com/huggingface/transformers/blob/main/LICENSE)
 * [Diffusers](https://github.com/huggingface/diffusers/blob/main/LICENSE)
+* [CLIP](https://huggingface.co/openai/clip-vit-base-patch16)
+* [BERT](https://huggingface.co/google-bert/bert-base-uncased)
 
 ## Donation
 

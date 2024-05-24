@@ -179,7 +179,8 @@ def load_model_and_tokenizer(model_name, finetuned=False):
         return None, None
 
 
-def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, epochs, batch_size, learning_rate, weight_decay, warmup_steps, block_size, grad_accum_steps, lora_r, lora_alpha, lora_dropout):
+def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, epochs, batch_size, learning_rate,
+                 weight_decay, warmup_steps, block_size, grad_accum_steps, lora_r, lora_alpha, lora_dropout):
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path.", None
@@ -240,7 +241,6 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
     )
 
     if finetune_method == "LORA":
-
         config = LoraConfig(
             r=lora_r,
             lora_alpha=lora_alpha,
@@ -280,7 +280,7 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
     ax.set_title('Training Loss')
 
     if loss_values:
-        ax.set_ylim(bottom=min(loss_values)-0.01, top=max(loss_values)+0.01)
+        ax.set_ylim(bottom=min(loss_values) - 0.01, top=max(loss_values) + 0.01)
         ax.set_xticks(epochs)
         ax.set_xticklabels([int(epoch) for epoch in epochs])
     else:
@@ -356,7 +356,8 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
             texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
                      input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
             return {'input_ids': tokenizer(texts, truncation=True, padding='max_length', max_length=128)['input_ids'],
-                    'attention_mask': tokenizer(texts, truncation=True, padding='max_length', max_length=128)['attention_mask'],
+                    'attention_mask': tokenizer(texts, truncation=True, padding='max_length', max_length=128)[
+                        'attention_mask'],
                     'labels': output_texts}
 
         eval_dataset = eval_dataset.map(process_examples, batched=True,
@@ -368,7 +369,10 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
 
     try:
         references = eval_dataset['labels']
-        predictions = [generate_text(model_name, lora_model_name, user_input if user_input else tokenizer.decode(example['input_ids'], skip_special_tokens=True), max_length, temperature, top_p, top_k) for example in eval_dataset]
+        predictions = [generate_text(model_name, lora_model_name,
+                                     user_input if user_input else tokenizer.decode(example['input_ids'],
+                                                                                    skip_special_tokens=True),
+                                     max_length, temperature, top_p, top_k) for example in eval_dataset]
 
         bleu_score = sacrebleu.corpus_bleu(predictions, [references]).score
 
@@ -456,7 +460,8 @@ def generate_text(model_name, lora_model_name, prompt, max_length, temperature, 
         return None, f"Text generation failed. Error: {e}"
 
 
-def finetune_sd(model_name, dataset_name, finetune_method, model_output_name, instance_prompt, resolution, train_batch_size, gradient_accumulation_steps,
+def finetune_sd(model_name, dataset_name, finetune_method, model_output_name, instance_prompt, resolution,
+                train_batch_size, gradient_accumulation_steps,
                 learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, checkpointing_steps, validation_epochs):
     model_path = os.path.join("models/sd", model_name)
     dataset_path = os.path.join("datasets/sd", dataset_name)
@@ -592,7 +597,8 @@ def plot_sd_evaluation_metrics(metrics):
 
 def evaluate_sd(model_name, lora_model_name, dataset_name, user_prompt, num_inference_steps, cfg_scale):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
-    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
+    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(
+        "cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
     if not model_name:
@@ -636,9 +642,11 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, user_prompt, num_infe
         image = batch["image"].convert("RGB")
         image_tensor = torch.from_numpy(np.array(image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
 
-        generated_images = model(prompt=user_prompt, num_inference_steps=num_inference_steps, guidance_scale=cfg_scale, output_type="pil").images
+        generated_images = model(prompt=user_prompt, num_inference_steps=num_inference_steps, guidance_scale=cfg_scale,
+                                 output_type="pil").images
         generated_image = generated_images[0].resize((image.width, image.height))
-        generated_image_tensor = torch.from_numpy(np.array(generated_image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
+        generated_image_tensor = torch.from_numpy(np.array(generated_image)).permute(2, 0, 1).unsqueeze(0).to(
+            "cuda").to(torch.uint8)
 
         fid.update(resize(image_tensor), real=True)
         fid.update(resize(generated_image_tensor), real=False)
@@ -678,7 +686,8 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, user_prompt, num_infe
 def generate_image(model_name, lora_model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
 
-    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
+    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(
+        "cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
     if not model_name:
@@ -709,6 +718,18 @@ def open_finetuned_folder():
         else:
             os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
 
+
+def settings_interface(share_value):
+    global share_mode
+    share_mode = share_value == "True"
+    message = f"Settings updated successfully!"
+
+    app.launch(share=share_mode, server_name="localhost")
+
+    return message
+
+
+share_mode = False
 
 llm_finetune_interface = gr.Interface(
     fn=finetune_llm,
@@ -845,6 +866,19 @@ sd_generate_interface = gr.Interface(
     allow_flagging="never",
 )
 
+settings_interface = gr.Interface(
+    fn=settings_interface,
+    inputs=[
+        gr.Radio(choices=["True", "False"], label="Share Mode", value="False")
+    ],
+    outputs=[
+        gr.Textbox(label="Message", type="text")
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - Settings",
+    description="This user interface allows you to change settings of application",
+    allow_flagging="never",
+)
+
 system_interface = gr.Interface(
     fn=get_system_info,
     inputs=[],
@@ -864,11 +898,11 @@ system_interface = gr.Interface(
 )
 
 with gr.TabbedInterface([gr.TabbedInterface([llm_finetune_interface, llm_evaluate_interface, llm_generate_interface],
-                        tab_names=["Finetune", "Evaluate", "Generate"]),
-                        gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_generate_interface],
-                        tab_names=["Finetune", "Evaluate", "Generate"]),
-                        system_interface],
-                        tab_names=["LLM", "StableDiffusion", "System"]) as app:
+                                            tab_names=["Finetune", "Evaluate", "Generate"]),
+                         gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_generate_interface],
+                                            tab_names=["Finetune", "Evaluate", "Generate"]),
+                         settings_interface, system_interface],
+                        tab_names=["LLM", "StableDiffusion", "Settings", "System"]) as app:
     close_button = gr.Button("Close terminal")
     close_button.click(close_terminal, [], [], queue=False)
 
@@ -886,5 +920,4 @@ with gr.TabbedInterface([gr.TabbedInterface([llm_finetune_interface, llm_evaluat
         '</div>'
     )
 
-    app.launch(server_name="localhost", auth=authenticate)
-    
+    app.launch(share=share_mode, server_name="localhost", auth=authenticate)

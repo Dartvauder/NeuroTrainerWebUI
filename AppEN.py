@@ -2,7 +2,7 @@ import os
 from git import Repo
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, PeftModel
 from diffusers import StableDiffusionPipeline, DDPMScheduler
 from datasets import load_dataset
 import matplotlib.pyplot as plt
@@ -74,17 +74,30 @@ def get_available_llm_models():
     return llm_available_models
 
 
-def get_available_finetuned_llm_models():
-    models_dir = "finetuned-models/llm"
+def get_available_llm_lora_models():
+    models_dir = "finetuned-models/llm/lora"
     os.makedirs(models_dir, exist_ok=True)
 
-    finetuned_available_models = []
+    llm_lora_available_models = []
     for model_name in os.listdir(models_dir):
         model_path = os.path.join(models_dir, model_name)
         if os.path.isdir(model_path):
-            finetuned_available_models.append(model_name)
+            llm_lora_available_models.append(model_name)
 
-    return finetuned_available_models
+    return llm_lora_available_models
+
+
+def get_available_finetuned_llm_models():
+    models_dir = "finetuned-models/llm/full"
+    os.makedirs(models_dir, exist_ok=True)
+
+    finetuned_available_llm_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            finetuned_available_llm_models.append(model_name)
+
+    return finetuned_available_llm_models
 
 
 def get_available_llm_datasets():
@@ -153,7 +166,7 @@ def get_available_sd_datasets():
 
 def load_model_and_tokenizer(model_name, finetuned=False):
     if finetuned:
-        model_path = os.path.join("finetuned-models/llm", model_name)
+        model_path = os.path.join("finetuned-models/llm/full", model_name)
     else:
         model_path = os.path.join("models/llm", model_name)
     try:
@@ -378,10 +391,14 @@ def evaluate_llm(model_name, dataset_file, user_input, max_length, temperature, 
         return f"Evaluation failed. Error: {e}", None
 
 
-def generate_text(model_name, prompt, max_length, temperature, top_p, top_k):
+def generate_text(model_name, lora_model_name, prompt, max_length, temperature, top_p, top_k):
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path."
+
+    if lora_model_name:
+        lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
+        model = PeftModel.from_pretrained(model, lora_model_path)
 
     try:
         input_ids = tokenizer.encode(prompt, return_tensors='pt')
@@ -689,6 +706,7 @@ llm_generate_interface = gr.Interface(
     fn=generate_text,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
+        gr.Dropdown(choices=get_available_llm_lora_models(), label="LORA Model (optional)"),
         gr.Textbox(label="Request", type="text"),
         gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max length"),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),

@@ -184,6 +184,15 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path.", None
 
+    if not model_name:
+        return "Please select the model", None
+
+    if not dataset_file:
+        return "Please select the dataset", None
+
+    if not model_output_name:
+        return "Please write the model name", None
+
     dataset_path = os.path.join("datasets/llm", dataset_file)
     try:
         train_dataset = load_dataset('json', data_files=dataset_path)
@@ -321,6 +330,15 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path.", None
 
+    if not model_name:
+        return "Please select the model", None
+
+    if not dataset_file:
+        return "Please select the dataset", None
+
+    if lora_model_name and not model_name:
+        return "Please select the original model", None
+
     if lora_model_name:
         lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
         model = PeftModel.from_pretrained(model, lora_model_path)
@@ -396,7 +414,13 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
 def generate_text(model_name, lora_model_name, prompt, max_length, temperature, top_p, top_k):
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
-        return "Error loading model and tokenizer. Please check the model path."
+        return None, "Error loading model and tokenizer. Please check the model path."
+
+    if not model_name:
+        return None, "Please select the model"
+
+    if lora_model_name and not model_name:
+        return None, "Please select the original model"
 
     if lora_model_name:
         lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
@@ -426,16 +450,25 @@ def generate_text(model_name, lora_model_name, prompt, max_length, temperature, 
         )
 
         generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-        return generated_text
+        return generated_text, "Text generation successful"
     except Exception as e:
         print(f"Error during text generation: {e}")
-        return f"Text generation failed. Error: {e}"
+        return None, f"Text generation failed. Error: {e}"
 
 
 def finetune_sd(model_name, dataset_name, finetune_method, model_output_name, instance_prompt, resolution, train_batch_size, gradient_accumulation_steps,
                 learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, checkpointing_steps, validation_epochs):
     model_path = os.path.join("models/sd", model_name)
     dataset_path = os.path.join("datasets/sd", dataset_name)
+
+    if not model_name:
+        return "Please select the model", None
+
+    if not dataset_name:
+        return "Please select the dataset", None
+
+    if not model_output_name:
+        return "Please write the model name", None
 
     if finetune_method == "Full":
         output_dir = os.path.join("finetuned-models/sd/full", model_output_name)
@@ -562,6 +595,15 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, user_prompt, num_infe
     model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
+    if not model_name:
+        return "Please select the model", None
+
+    if not dataset_name:
+        return "Please select the dataset", None
+
+    if lora_model_name and not model_name:
+        return "Please select the original model", None
+
     if lora_model_name:
         lora_model_path = os.path.join("finetuned-models/sd/lora", lora_model_name)
         model.unet.load_attn_procs(lora_model_path)
@@ -639,6 +681,12 @@ def generate_image(model_name, lora_model_name, prompt, negative_prompt, num_inf
     model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to("cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
+    if not model_name:
+        return "Please select the model", None
+
+    if lora_model_name and not model_name:
+        return "Please select the original model", None
+
     if lora_model_name:
         lora_model_path = os.path.join("finetuned-models/sd/lora", lora_model_name)
         model.unet.load_attn_procs(lora_model_path)
@@ -646,7 +694,7 @@ def generate_image(model_name, lora_model_name, prompt, negative_prompt, num_inf
     image = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
                   guidance_scale=cfg_scale, width=width, height=height).images[0]
 
-    return image
+    return image, "Image generation successful"
 
 
 def close_terminal():
@@ -721,7 +769,10 @@ llm_generate_interface = gr.Interface(
         gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, label="Top P"),
         gr.Slider(minimum=0, maximum=100, value=20, step=1, label="Top K"),
     ],
-    outputs=gr.Textbox(label="Generated text", type="text"),
+    outputs=[
+        gr.Textbox(label="Generated text", type="text"),
+        gr.Textbox(label="Message", type="text"),
+    ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Generate",
     description="Generate text using LLM models",
     allow_flagging="never",
@@ -785,7 +836,10 @@ sd_generate_interface = gr.Interface(
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Width"),
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Height"),
     ],
-    outputs=gr.Image(label="Generated Image"),
+    outputs=[
+        gr.Image(label="Generated Image"),
+        gr.Textbox(label="Message", type="text"),
+    ],
     title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Generate",
     description="Generate images using fine-tuned Stable Diffusion models",
     allow_flagging="never",
@@ -833,3 +887,4 @@ with gr.TabbedInterface([gr.TabbedInterface([llm_finetune_interface, llm_evaluat
     )
 
     app.launch(server_name="localhost", auth=authenticate)
+    

@@ -7,7 +7,7 @@
 
 A simple and convenient interface for using of various neural network models. You can finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also check system sensors
 
-The goal of the project - to create the easiest possible application to finetune, evaluate and generate with neural network models
+The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
 ### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/80b62b35-38c5-46cb-824a-a05513cb2c4a)
 
@@ -22,6 +22,7 @@ The goal of the project - to create the easiest possible application to finetune
 * Authentication via admin:admin (You can enter your login details in the GradioAuth.txt file)
 * Support for Transformers finetune, evaluate and generate (LLM)
 * Support for Diffusers finetune, evaluate and generate (StableDiffusion)
+* Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
 * Ability to see system sensors
 
 ## Required Dependencies:
@@ -73,22 +74,23 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 1) First upload your models to the folder: *models/llm*
 2) Upload your dataset to the folder: *datasets/llm*
 3) Select your model and dataset from the drop-down lists
-4) Set up the model hyper-parameters for finetuning
-5) Click the `Submit` button to receive the finetuned model
+4) Select a finetune type
+5) Set up the model hyper-parameters for finetuning
+6) Click the `Submit` button to receive the finetuned model
 
 #### Evaluate:
 
 1) First upload your models to the folder: *finetuned-models/llm*
 2) Upload your dataset to the folder: *datasets/llm*
-3) Select your model and dataset from the drop-down lists
-4) Set up the model parameters for evaluate
+3) Select your models and dataset from the drop-down lists
+4) Set up the models parameters for evaluate
 5) Click the `Submit` button to receive the evaluate of model
 
 #### Generate:
 
-1) Select your model from the drop-down list
-2) Set up the model according to the parameters you need
-3) Set up the model parameters to generate
+1) Select your models from the drop-down list
+2) Set up the models according to the parameters you need
+3) Set up the models parameters to generate
 4) Click the `Submit` button to receive the generated text
 
 ### StableDiffusion - has three sub-tabs:
@@ -98,22 +100,23 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 1) First upload your models to the folder: *models/sd*
 2) Upload your dataset to the folder: *datasets/sd*
 3) Select your model and dataset from the drop-down lists
-4) Set up the model hyper-parameters for finetuning
-5) Click the `Submit` button to receive the finetuned model
+4) Select a finetune type
+5) Set up the model hyper-parameters for finetuning
+6) Click the `Submit` button to receive the finetuned model
 
 #### Evaluate:
 
 1) First upload your models to the folder: *finetuned-models/sd*
 2) Upload your dataset to the folder: *datasets/sd*
-3) Select your model and dataset from the drop-down lists
-4) Set up the model parameters for evaluate
+3) Select your models and dataset from the drop-down lists
+4) Set up the models parameters for evaluate
 5) Click the `Submit` button to receive the evaluate of model
 
 #### Generate:
 
-1) Select your model from the drop-down list
-2) Set up the model according to the parameters you need
-3) Set up the model parameters to generate
+1) Select your models from the drop-down list
+2) Set up the models according to the parameters you need
+3) Set up the models parameters to generate
 4) Click the `Submit` button to receive the generated image
 
 ### Additional Information:

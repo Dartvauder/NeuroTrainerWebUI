@@ -2,6 +2,7 @@ import os
 from git import Repo
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
+from peft import LoraConfig, get_peft_model
 from diffusers import StableDiffusionPipeline, DDPMScheduler
 from datasets import load_dataset
 import matplotlib.pyplot as plt
@@ -165,7 +166,7 @@ def load_model_and_tokenizer(model_name, finetuned=False):
         return None, None
 
 
-def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, weight_decay, warmup_steps, block_size, grad_accum_steps):
+def finetune_llm(model_name, dataset_file, finetune_method, epochs, batch_size, learning_rate, weight_decay, warmup_steps, block_size, grad_accum_steps, lora_r, lora_alpha, lora_dropout):
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path.", None
@@ -193,7 +194,13 @@ def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, we
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
-    save_dir = "finetuned-models/llm"
+    if finetune_method == "Full":
+        save_dir = "finetuned-models/llm/full"
+    elif finetune_method == "LORA":
+        save_dir = "finetuned-models/llm/lora"
+    else:
+        return "Invalid finetune method. Please choose either 'Full' or 'LORA'.", None
+
     os.makedirs(save_dir, exist_ok=True)
 
     save_path = os.path.join(save_dir, model_name)
@@ -211,6 +218,19 @@ def finetune_llm(model_name, dataset_file, epochs, batch_size, learning_rate, we
         save_total_limit=2,
         logging_strategy='epoch',
     )
+
+    if finetune_method == "LORA":
+
+        config = LoraConfig(
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            target_modules=["q_proj", "v_proj"],
+            lora_dropout=lora_dropout,
+            bias="none",
+            task_type="CAUSAL_LM"
+        )
+
+        model = get_peft_model(model, config)
 
     trainer = Trainer(
         model=model,
@@ -624,6 +644,7 @@ llm_finetune_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
+        gr.Radio(choices=["Full", "LORA"], value="Full", label="Finetune Method"),
         gr.Number(value=10, label="Epochs"),
         gr.Number(value=4, label="Batch size"),
         gr.Number(value=3e-5, label="Learning rate"),
@@ -631,6 +652,9 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=100, label="Warmup steps"),
         gr.Number(value=128, label="Block size"),
         gr.Number(value=1, label="Gradient accumulation steps"),
+        gr.Number(value=16, label="LORA r"),
+        gr.Number(value=32, label="LORA alpha"),
+        gr.Number(value=0.05, label="LORA dropout"),
     ],
     outputs=[
         gr.Textbox(label="Fine-tuning Status", type="text"),

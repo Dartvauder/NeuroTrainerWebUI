@@ -8,6 +8,8 @@ from datasets import load_dataset
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import json
+from datetime import datetime
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.kid import KernelInceptionDistance
 from torchmetrics.image.inception import InceptionScore
@@ -415,7 +417,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
         return f"Evaluation failed. Error: {e}", None
 
 
-def generate_text(model_name, lora_model_name, prompt, max_length, temperature, top_p, top_k):
+def generate_text(model_name, lora_model_name, prompt, max_length, temperature, top_p, top_k, output_format):
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
         return None, "Error loading model and tokenizer. Please check the model path."
@@ -454,6 +456,22 @@ def generate_text(model_name, lora_model_name, prompt, max_length, temperature, 
         )
 
         generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+
+        output_dir = "outputs/llm"
+        os.makedirs(output_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        output_file = f"llm_history_{timestamp}.{output_format}"
+        output_path = os.path.join(output_dir, output_file)
+
+        if output_format == "txt":
+            with open(output_path, "a") as file:
+                file.write(f"Human: {prompt}\nAI: {generated_text}\n")
+        elif output_format == "json":
+            history = [{"Human": prompt, "AI": generated_text}]
+            with open(output_path, "w") as file:
+                json.dump(history, file, indent=2)
+
         return generated_text, "Text generation successful"
     except Exception as e:
         print(f"Error during text generation: {e}")
@@ -683,7 +701,7 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, user_prompt, num_infe
     return f"Evaluation completed successfully. Results saved to {plot_path}", fig
 
 
-def generate_image(model_name, lora_model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height):
+def generate_image(model_name, lora_model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
 
     model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(
@@ -702,6 +720,15 @@ def generate_image(model_name, lora_model_name, prompt, negative_prompt, num_inf
 
     image = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
                   guidance_scale=cfg_scale, width=width, height=height).images[0]
+
+    output_dir = "outputs/sd"
+    os.makedirs(output_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    output_file = f"sd_image_{timestamp}.{output_format}"
+    output_path = os.path.join(output_dir, output_file)
+
+    image.save(output_path)
 
     return image, "Image generation successful"
 
@@ -789,6 +816,7 @@ llm_generate_interface = gr.Interface(
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
         gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, label="Top P"),
         gr.Slider(minimum=0, maximum=100, value=20, step=1, label="Top K"),
+        gr.Radio(choices=["txt", "json"], value="txt", label="Output Format"),
     ],
     outputs=[
         gr.Textbox(label="Generated text", type="text"),
@@ -856,6 +884,7 @@ sd_generate_interface = gr.Interface(
         gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label="CFG"),
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Width"),
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label="Height"),
+        gr.Radio(choices=["png", "jpeg"], value="png", label="Output Format"),
     ],
     outputs=[
         gr.Image(label="Generated Image"),

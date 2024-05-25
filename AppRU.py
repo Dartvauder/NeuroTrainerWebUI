@@ -716,6 +716,24 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, user_prompt, num_infe
     return f"Evaluation completed successfully. Results saved to {plot_path}", fig
 
 
+def convert_sd_model_to_safetensors(model_name):
+    model_path = os.path.join("finetuned-models/sd/full", model_name)
+    output_path = os.path.join(model_path, f"{model_name}.safetensors")
+
+    try:
+        subprocess.run([
+            "py",
+            "trainer-scripts/convert_diffusers_to_original_stable_diffusion.py",
+            "--model_path", model_path,
+            "--checkpoint_path", output_path,
+            "--use_safetensors"
+        ], check=True)
+
+        return f"Model successfully converted to safetensors and saved to {output_path}"
+    except subprocess.CalledProcessError as e:
+        return f"Error converting model to safetensors: {e}"
+
+
 def generate_image(model_name, lora_model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
 
@@ -888,6 +906,19 @@ sd_evaluate_interface = gr.Interface(
     allow_flagging="never",
 )
 
+sd_convert_interface = gr.Interface(
+    fn=convert_sd_model_to_safetensors,
+    inputs=[
+        gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
+    ],
+    outputs=[
+        gr.Textbox(label="Conversion Status", type="text"),
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Safetensors",
+    description="Convert Stable Diffusion models to safetensors format",
+    allow_flagging="never",
+)
+
 sd_generate_interface = gr.Interface(
     fn=generate_image,
     inputs=[
@@ -943,8 +974,8 @@ system_interface = gr.Interface(
 
 with gr.TabbedInterface([gr.TabbedInterface([llm_finetune_interface, llm_evaluate_interface, llm_generate_interface],
                                             tab_names=["Finetune", "Evaluate", "Generate"]),
-                         gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_generate_interface],
-                                            tab_names=["Finetune", "Evaluate", "Generate"]),
+                         gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
+                                            tab_names=["Finetune", "Evaluate", "Safetensors", "Generate"]),
                          settings_interface, system_interface],
                         tab_names=["LLM", "StableDiffusion", "Settings", "System"]) as app:
     close_button = gr.Button("Close terminal")

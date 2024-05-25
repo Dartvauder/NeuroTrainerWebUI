@@ -148,7 +148,7 @@ def get_available_finetuned_sd_models():
     finetuned_sd_available_models = []
     for model_name in os.listdir(models_dir):
         model_path = os.path.join(models_dir, model_name)
-        if os.path.isdir(model_path):
+        if os.path.isdir(model_path) or model_name.endswith(".safetensors"):
             finetuned_sd_available_models.append(model_name)
 
     return finetuned_sd_available_models
@@ -734,11 +734,18 @@ def convert_sd_model_to_safetensors(model_name):
         return f"Error converting model to safetensors: {e}"
 
 
-def generate_image(model_name, lora_model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
-    model_path = os.path.join("finetuned-models/sd/full", model_name)
+def generate_image(model_name, lora_model_name, model_type, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
+    if model_type == "Diffusers":
+        model_path = os.path.join("finetuned-models/sd/full", model_name)
+        model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(
+            "cuda")
+    elif model_type == "Safetensors":
+        model_path = os.path.join("finetuned-models/sd/full", model_name)
+        model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16, safety_checker=None).to(
+            "cuda")
+    else:
+        return "Invalid model type selected", None
 
-    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(
-        "cuda")
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
     if not model_name:
@@ -924,6 +931,7 @@ sd_generate_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
         gr.Dropdown(choices=get_available_sd_lora_models(), label="LORA Model (optional)"),
+        gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label="Model Type"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Textbox(label="Negative Prompt", type="text"),
         gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),

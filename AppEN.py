@@ -493,7 +493,7 @@ def generate_text(model_name, lora_model_name, prompt, max_length, temperature, 
         return None, f"Text generation failed. Error: {e}"
 
 
-def finetune_sd(model_name, dataset_name, finetune_method, model_output_name, instance_prompt, resolution,
+def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_output_name, instance_prompt, resolution,
                 train_batch_size, gradient_accumulation_steps,
                 learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, checkpointing_steps, validation_epochs):
     model_path = os.path.join("models/sd", model_name)
@@ -510,43 +510,82 @@ def finetune_sd(model_name, dataset_name, finetune_method, model_output_name, in
 
     if finetune_method == "Full":
         output_dir = os.path.join("finetuned-models/sd/full", model_output_name)
-        args = [
-            "accelerate", "launch", "trainer-scripts/train_dreambooth.py",
-            f"--pretrained_model_name_or_path={model_path}",
-            f"--instance_data_dir={dataset_path}",
-            f"--output_dir={output_dir}",
-            f"--instance_prompt={instance_prompt}",
-            f"--resolution={resolution}",
-            f"--train_batch_size={train_batch_size}",
-            f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-            f"--learning_rate={learning_rate}",
-            f"--lr_scheduler={lr_scheduler}",
-            f"--lr_warmup_steps={lr_warmup_steps}",
-            f"--max_train_steps={max_train_steps}",
-            f"--mixed_precision=no",
-            f"--seed=0"
-        ]
+        if model_type == "SD":
+            args = [
+                "accelerate", "launch", "trainer-scripts/train_dreambooth.py",
+                f"--pretrained_model_name_or_path={model_path}",
+                f"--instance_data_dir={dataset_path}",
+                f"--output_dir={output_dir}",
+                f"--instance_prompt={instance_prompt}",
+                f"--resolution={resolution}",
+                f"--train_batch_size={train_batch_size}",
+                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                f"--learning_rate={learning_rate}",
+                f"--lr_scheduler={lr_scheduler}",
+                f"--lr_warmup_steps={lr_warmup_steps}",
+                f"--max_train_steps={max_train_steps}",
+                f"--mixed_precision=no",
+                f"--seed=0"
+            ]
+        elif model_type == "SDXL":
+            args = [
+                "accelerate", "launch", "trainer-scripts/train_text_to_image_sdxl.py",
+                f"--pretrained_model_name_or_path={model_path}",
+                f"--instance_data_dir={dataset_path}",
+                f"--output_dir={output_dir}",
+                f"--instance_prompt={instance_prompt}",
+                f"--resolution={resolution}",
+                f"--train_batch_size={train_batch_size}",
+                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                f"--learning_rate={learning_rate}",
+                f"--lr_scheduler={lr_scheduler}",
+                f"--lr_warmup_steps={lr_warmup_steps}",
+                f"--max_train_steps={max_train_steps}",
+                f"--mixed_precision=no",
+                f"--seed=0"
+            ]
     elif finetune_method == "LORA":
         output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
-        args = [
-            "accelerate", "launch", "trainer-scripts/train_dreambooth_lora.py",
-            f"--pretrained_model_name_or_path={model_path}",
-            f"--instance_data_dir={dataset_path}",
-            f"--output_dir={output_dir}",
-            f"--instance_prompt={instance_prompt}",
-            f"--resolution={resolution}",
-            f"--train_batch_size={train_batch_size}",
-            f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-            f"--checkpointing_steps={checkpointing_steps}",
-            f"--learning_rate={learning_rate}",
-            f"--lr_scheduler={lr_scheduler}",
-            f"--lr_warmup_steps={lr_warmup_steps}",
-            f"--max_train_steps={max_train_steps}",
-            f"--validation_prompt={instance_prompt}",
-            f"--validation_epochs={validation_epochs}",
-            f"--mixed_precision=no",
-            f"--seed=0"
-        ]
+        if model_type == "SD":
+            args = [
+                "accelerate", "launch", "trainer-scripts/train_dreambooth_lora.py",
+                f"--pretrained_model_name_or_path={model_path}",
+                f"--instance_data_dir={dataset_path}",
+                f"--output_dir={output_dir}",
+                f"--instance_prompt={instance_prompt}",
+                f"--resolution={resolution}",
+                f"--train_batch_size={train_batch_size}",
+                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                f"--checkpointing_steps={checkpointing_steps}",
+                f"--learning_rate={learning_rate}",
+                f"--lr_scheduler={lr_scheduler}",
+                f"--lr_warmup_steps={lr_warmup_steps}",
+                f"--max_train_steps={max_train_steps}",
+                f"--validation_prompt={instance_prompt}",
+                f"--validation_epochs={validation_epochs}",
+                f"--mixed_precision=no",
+                f"--seed=0"
+            ]
+        elif model_type == "SDXL":
+            args = [
+                "accelerate", "launch", "trainer-scripts/train_dreambooth_lora_sdxl.py",
+                f"--pretrained_model_name_or_path={model_path}",
+                f"--instance_data_dir={dataset_path}",
+                f"--output_dir={output_dir}",
+                f"--instance_prompt={instance_prompt}",
+                f"--resolution={resolution}",
+                f"--train_batch_size={train_batch_size}",
+                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                f"--checkpointing_steps={checkpointing_steps}",
+                f"--learning_rate={learning_rate}",
+                f"--lr_scheduler={lr_scheduler}",
+                f"--lr_warmup_steps={lr_warmup_steps}",
+                f"--max_train_steps={max_train_steps}",
+                f"--validation_prompt={instance_prompt}",
+                f"--validation_epochs={validation_epochs}",
+                f"--mixed_precision=no",
+                f"--seed=0"
+            ]
     else:
         raise ValueError(f"Invalid finetune method: {finetune_method}")
 
@@ -628,10 +667,18 @@ def plot_sd_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_sd(model_name, lora_model_name, dataset_name, user_prompt, num_inference_steps, cfg_scale):
-    model_path = os.path.join("finetuned-models/sd/full", model_name)
-    model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(
-        "cuda")
+def evaluate_sd(model_name, lora_model_name, dataset_name, model_type, user_prompt, num_inference_steps, cfg_scale):
+    if model_type == "Diffusers":
+        model_path = os.path.join("finetuned-models/sd/full", model_name)
+        model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(
+            "cuda")
+    elif model_type == "Safetensors":
+        model_path = os.path.join("finetuned-models/sd/full", model_name)
+        model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16, safety_checker=None).to(
+            "cuda")
+    else:
+        return "Invalid model type selected", None
+
     model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
     if not model_name:
@@ -872,6 +919,7 @@ sd_finetune_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_sd_models(), label="Model"),
         gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
+        gr.Radio(choices=["SD", "SDXL"], value="SD", label="Model Type"),
         gr.Radio(choices=["Full", "LORA"], value="Full", label="Finetune Method"),
         gr.Textbox(label="Output Model Name", type="text"),
         gr.Textbox(label="Instance Prompt", type="text"),
@@ -900,6 +948,7 @@ sd_evaluate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
         gr.Dropdown(choices=get_available_sd_lora_models(), label="LORA Model (optional)"),
         gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
+        gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label="Model Type"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),
         gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label="CFG"),

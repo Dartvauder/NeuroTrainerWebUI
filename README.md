@@ -80,9 +80,10 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 1) First upload your models to the folder: *models/llm*
 2) Upload your dataset to the folder: *datasets/llm*
 3) Select your model and dataset from the drop-down lists
-4) Select a finetune type
-5) Set up the model hyper-parameters for finetuning
-6) Click the `Submit` button to receive the finetuned model
+4) Select a finetune method
+5) Write a name for the model
+6) Set up the model hyper-parameters for finetuning
+7) Click the `Submit` button to receive the finetuned model
 
 #### Evaluate:
 
@@ -106,30 +107,36 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 1) First upload your models to the folder: *models/sd*
 2) Upload your dataset to the folder: *datasets/sd*
 3) Select your model and dataset from the drop-down lists
-4) Select a finetune type
-5) Set up the model hyper-parameters for finetuning
-6) Click the `Submit` button to receive the finetuned model
+4) Select a model type and finetune method
+5) Write a name for the model
+6) Set up the model hyper-parameters for finetuning
+7) Click the `Submit` button to receive the finetuned model
 
 #### Evaluate:
 
 1) First upload your models to the folder: *finetuned-models/sd*
 2) Upload your dataset to the folder: *datasets/sd*
 3) Select your models and dataset from the drop-down lists
-4) Set up the models parameters for evaluate
-5) Click the `Submit` button to receive the evaluate of model
+4) Select a model method and model type
+5) Enter your prompt
+6) Set up the models parameters for evaluate
+7) Click the `Submit` button to receive the evaluate of model
 
 #### Conversion:
 
 1) First upload your models to the folder: *finetuned-models/sd*
-2) Set up the models parameters for convert
-3) Click the `Submit` button to receive the conversion of model
+2) Select a model type
+3) Set up the models parameters for convert
+4) Click the `Submit` button to receive the conversion of model
 
 #### Generate:
 
-1) Select your models from the drop-down list
-2) Set up the models according to the parameters you need
-3) Set up the models parameters to generate
-4) Click the `Submit` button to receive the generated image
+1) First upload your models to the folder: *finetuned-models/sd*
+2) Select your models from the drop-down list
+3) Select a model method and model type
+5) Enter your prompt
+6) Set up the models parameters to generate
+7) Click the `Submit` button to receive the generated image
 
 ### ModelDownloader:
 

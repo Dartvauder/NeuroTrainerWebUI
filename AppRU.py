@@ -267,10 +267,10 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
         trainer.train()
         trainer.save_model()
         tokenizer.save_pretrained(save_path)
-        print("Training completed successfully.")
+        print("Finetuning completed successfully.")
     except Exception as e:
-        print(f"Error during training: {e}")
-        return f"Training failed. Error: {e}", None
+        print(f"Error during Finetuning: {e}")
+        return f"Finetuning failed. Error: {e}", None
 
     loss_values = [log['loss'] for log in trainer.state.log_history if 'loss' in log]
     epochs = [log['epoch'] for log in trainer.state.log_history if 'epoch' in log]
@@ -299,7 +299,7 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
     plt.savefig(plot_path)
     plt.close()
 
-    return f"Fine-tuning completed. Model saved at: {save_path}", fig
+    return f"Finetuning completed. Model saved at: {save_path}", fig
 
 
 def plot_llm_evaluation_metrics(metrics):
@@ -642,7 +642,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
         plt.savefig(plot_path)
         plt.close()
 
-        return f"Fine-tuning completed. Model saved at: {output_dir}", fig
+        return f"Finetuning completed. Model saved at: {output_dir}", fig
 
 
 def plot_sd_evaluation_metrics(metrics):
@@ -668,7 +668,7 @@ def plot_sd_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_type, user_prompt, num_inference_steps, cfg_scale):
+def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_type, user_prompt, negative_prompt, num_inference_steps, cfg_scale):
     if model_method == "Diffusers":
         if model_type == "SD":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
@@ -739,7 +739,7 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
         image = batch["image"].convert("RGB")
         image_tensor = torch.from_numpy(np.array(image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
 
-        generated_images = model(prompt=user_prompt, num_inference_steps=num_inference_steps, guidance_scale=cfg_scale,
+        generated_images = model(prompt=user_prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps, guidance_scale=cfg_scale,
                                  output_type="pil").images
         generated_image = generated_images[0].resize((image.width, image.height))
         generated_image_tensor = torch.from_numpy(np.array(generated_image)).permute(2, 0, 1).unsqueeze(0).to(
@@ -961,11 +961,11 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=0.05, label="LORA dropout"),
     ],
     outputs=[
-        gr.Textbox(label="Fine-tuning Status", type="text"),
-        gr.Plot(label="Fine-tuning Loss")
+        gr.Textbox(label="Finetuning Status", type="text"),
+        gr.Plot(label="Finetuning Loss")
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Finetune",
-    description="Fine-tune LLM models on a custom dataset",
+    description="Finetune LLM models on a custom dataset",
     allow_flagging="never",
 )
 
@@ -1031,11 +1031,11 @@ sd_finetune_interface = gr.Interface(
         gr.Number(value=50, label="Validation Epochs (LORA)"),
     ],
     outputs=[
-        gr.Textbox(label="Fine-tuning Status", type="text"),
-        gr.Plot(label="Fine-tuning Loss")
+        gr.Textbox(label="Finetuning Status", type="text"),
+        gr.Plot(label="Finetuning Loss")
     ],
     title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Finetune",
-    description="Fine-tune Stable Diffusion models on a custom dataset",
+    description="Finetune Stable Diffusion models on a custom dataset",
     allow_flagging="never",
 )
 
@@ -1048,6 +1048,7 @@ sd_evaluate_interface = gr.Interface(
         gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label="Model Method"),
         gr.Radio(choices=["SD", "SDXL"], value="SD", label="Model Type"),
         gr.Textbox(label="Prompt", type="text"),
+        gr.Textbox(label="Negative Prompt", type="text"),
         gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),
         gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label="CFG"),
     ],
@@ -1056,7 +1057,7 @@ sd_evaluate_interface = gr.Interface(
         gr.Plot(label="Evaluation Metrics"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - StabledDiffusion-Evaluate",
-    description="Evaluate fine-tuned Stable Diffusion models",
+    description="Evaluate finetuned Stable Diffusion models",
     allow_flagging="never",
 )
 

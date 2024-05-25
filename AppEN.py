@@ -779,36 +779,46 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
     return f"Evaluation completed successfully. Results saved to {plot_path}", fig
 
 
-def convert_sd_model_to_safetensors(model_name, model_type):
+def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safetensors):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
-    output_path = os.path.join(model_path, f"{model_name}.safetensors")
+    output_path = os.path.join(model_path)
 
     if model_type == "SD":
         try:
-            subprocess.run([
+            args = [
                 "py",
                 "trainer-scripts/sd/convert_diffusers_to_original_stable_diffusion.py",
                 "--model_path", model_path,
                 "--checkpoint_path", output_path,
-                "--use_safetensors"
-            ], check=True)
+            ]
+            if use_half:
+                args.append("--half")
+            if use_safetensors:
+                args.append("--use_safetensors")
 
-            return f"Model successfully converted to safetensors and saved to {output_path}"
+            subprocess.run(args, check=True)
+
+            return f"Model successfully converted to single file and saved to {output_path}"
         except subprocess.CalledProcessError as e:
-            return f"Error converting model to safetensors: {e}"
+            return f"Error converting model to single file: {e}"
     elif model_type == "SDXL":
         try:
-            subprocess.run([
+            args = [
                 "py",
                 "trainer-scripts/sd/convert_diffusers_to_original_sdxl.py",
                 "--model_path", model_path,
                 "--checkpoint_path", output_path,
-                "--use_safetensors"
-            ], check=True)
+            ]
+            if use_half:
+                args.append("--half")
+            if use_safetensors:
+                args.append("--use_safetensors")
 
-            return f"Model successfully converted to safetensors and saved to {output_path}"
+            subprocess.run(args, check=True)
+
+            return f"Model successfully converted to single file and saved to {output_path}"
         except subprocess.CalledProcessError as e:
-            return f"Error converting model to safetensors: {e}"
+            return f"Error converting model to single file: {e}"
 
 
 def generate_image(model_name, lora_model_name, model_method, model_type, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
@@ -1014,12 +1024,14 @@ sd_convert_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
         gr.Radio(choices=["SD", "SDXL"], value="SD", label="Model Type"),
+        gr.Checkbox(label="Use Half Precision", value=False),
+        gr.Checkbox(label="Use Safetensors", value=False),
     ],
     outputs=[
         gr.Textbox(label="Conversion Status", type="text"),
     ],
-    title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Safetensors",
-    description="Convert Stable Diffusion models to safetensors format",
+    title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Conversion",
+    description="Convert Stable Diffusion models to single file",
     allow_flagging="never",
 )
 
@@ -1081,7 +1093,7 @@ system_interface = gr.Interface(
 with gr.TabbedInterface([gr.TabbedInterface([llm_finetune_interface, llm_evaluate_interface, llm_generate_interface],
                                             tab_names=["Finetune", "Evaluate", "Generate"]),
                          gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
-                                            tab_names=["Finetune", "Evaluate", "Safetensors", "Generate"]),
+                                            tab_names=["Finetune", "Evaluate", "Conversion", "Generate"]),
                          settings_interface, system_interface],
                         tab_names=["LLM", "StableDiffusion", "Settings", "System"]) as app:
     close_button = gr.Button("Close terminal")

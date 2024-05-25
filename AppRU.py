@@ -668,7 +668,7 @@ def plot_sd_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_type, user_prompt, num_inference_steps, cfg_scale):
+def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_type, user_prompt, negative_prompt, num_inference_steps, cfg_scale):
     if model_method == "Diffusers":
         if model_type == "SD":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
@@ -739,7 +739,7 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
         image = batch["image"].convert("RGB")
         image_tensor = torch.from_numpy(np.array(image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
 
-        generated_images = model(prompt=user_prompt, num_inference_steps=num_inference_steps, guidance_scale=cfg_scale,
+        generated_images = model(prompt=user_prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps, guidance_scale=cfg_scale,
                                  output_type="pil").images
         generated_image = generated_images[0].resize((image.width, image.height))
         generated_image_tensor = torch.from_numpy(np.array(generated_image)).permute(2, 0, 1).unsqueeze(0).to(
@@ -1048,6 +1048,7 @@ sd_evaluate_interface = gr.Interface(
         gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label="Model Method"),
         gr.Radio(choices=["SD", "SDXL"], value="SD", label="Model Type"),
         gr.Textbox(label="Prompt", type="text"),
+        gr.Textbox(label="Negative Prompt", type="text"),
         gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),
         gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label="CFG"),
     ],
@@ -1056,7 +1057,7 @@ sd_evaluate_interface = gr.Interface(
         gr.Plot(label="Evaluation Metrics"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - StabledDiffusion-Evaluate",
-    description="Evaluate fine-tuned Stable Diffusion models",
+    description="Evaluate finetuned Stable Diffusion models",
     allow_flagging="never",
 )
 

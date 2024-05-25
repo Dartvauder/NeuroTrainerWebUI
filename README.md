@@ -23,7 +23,7 @@ The goal of the project - to create the easiest possible application to finetune
 * Flexible and optimized interface (By Gradio)
 * Authentication via admin:admin (You can enter your login details in the GradioAuth.txt file)
 * Support for Transformers finetune, evaluate and generate (LLM)
-* Support for Diffusers finetune, evaluate and generate (StableDiffusion)
+* Support for Diffusers finetune, evaluate, conversion and generate (StableDiffusion)
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
 * Application settings
 * Ability to see system sensors
@@ -96,7 +96,7 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 3) Set up the models parameters to generate
 4) Click the `Submit` button to receive the generated text
 
-### StableDiffusion - has three sub-tabs:
+### StableDiffusion - has four sub-tabs:
 
 #### Finetune:
 
@@ -114,6 +114,12 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 3) Select your models and dataset from the drop-down lists
 4) Set up the models parameters for evaluate
 5) Click the `Submit` button to receive the evaluate of model
+
+#### Conversion:
+
+1) First upload your models to the folder: *finetuned-models/sd*
+2) Set up the models parameters for convert
+3) Click the `Submit` button to receive the conversion of model
 
 #### Generate:
 
@@ -162,6 +168,7 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 
 * [Transformers](https://github.com/huggingface/transformers/blob/main/LICENSE)
 * [Diffusers](https://github.com/huggingface/diffusers/blob/main/LICENSE)
+* [TrainerScripts](http://www.apache.org/licenses/LICENSE-2.0)
 * [CLIP](https://huggingface.co/openai/clip-vit-base-patch16)
 * [BERT](https://huggingface.co/google-bert/bert-base-uncased)
 

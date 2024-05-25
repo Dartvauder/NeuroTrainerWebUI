@@ -5,17 +5,19 @@
 
 ## Description:
 
-A simple and convenient interface for using of various neural network models. You can finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also check system sensors
+A simple and convenient interface for using of various neural network models. You can finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also download the LLM and StableDiffusion models, change the application settings inside the interface and check system sensors
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/75a89ffe-fdd2-4d59-9839-a35b41f1873f)
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/4495d70c-f4ea-4642-8db0-1463a63dc9e4)
 
-### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/ae900d93-b73e-4731-af5c-f792c7eb3ba2)
+### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/a1584edb-e21d-458a-bc6c-a1ff194752c0)
 
-### Settings: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/fb4eaa23-5ca8-49c7-a86f-77198a79a79e)
+### ModelDownloader: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/42a4fbf6-f57f-45c9-a0f9-4de53f856ae5)
 
-### System: ![4](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/fcbd172a-2ca7-4692-ac7f-0045f7080076)
+### Settings: ![4](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/8bd096fe-b7f8-4e2f-b6f7-9e120e09b6a0)
+
+### System: ![5](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/30dd30d6-0411-4add-bada-56fd2802d69a)
 
 ## Features:
 
@@ -23,8 +25,9 @@ The goal of the project - to create the easiest possible application to finetune
 * Flexible and optimized interface (By Gradio)
 * Authentication via admin:admin (You can enter your login details in the GradioAuth.txt file)
 * Support for Transformers finetune, evaluate and generate (LLM)
-* Support for Diffusers finetune, evaluate, conversion and generate (StableDiffusion)
+* Support for Diffusers and Safetensors finetune, evaluate, conversion and generate (StableDiffusion)
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
+* ModelDownloader (For LLM and StableDiffusion)
 * Application settings
 * Ability to see system sensors
 
@@ -68,7 +71,7 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 ## How to use:
 
-#### Interface has four tabs: LLM, StableDiffusion, Settings and System. Select the one you need and follow the instructions below 
+#### Interface has five tabs: LLM, StableDiffusion, ModelDownloader, Settings and System. Select the one you need and follow the instructions below 
 
 ### LLM - has three sub-tabs:
 
@@ -128,6 +131,12 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 3) Set up the models parameters to generate
 4) Click the `Submit` button to receive the generated image
 
+### ModelDownloader:
+
+* Here you can download `LLM` and `StableDiffusion` models. Just choose the model from the drop-down list and click the `Submit` button
+#### `LLM` models are downloaded here: *models/llm*
+#### `StableDiffusion` models are downloaded here: *models/sd*
+
 ### Settings: 
 
 * Here you can change the application settings. For now you can only change `Share` mode to `True` or `False`
@@ -168,6 +177,9 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 
 * [Transformers](https://github.com/huggingface/transformers/blob/main/LICENSE)
 * [Diffusers](https://github.com/huggingface/diffusers/blob/main/LICENSE)
+* [StableDiffusion1.5](https://huggingface.co/spaces/CompVis/stable-diffusion-license)
+* [StableDiffusion2](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md)
+* [StableDiffusionXL](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md)
 * [TrainerScripts](http://www.apache.org/licenses/LICENSE-2.0)
 * [CLIP](https://huggingface.co/openai/clip-vit-base-patch16)
 * [BERT](https://huggingface.co/google-bert/bert-base-uncased)

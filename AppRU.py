@@ -1,5 +1,6 @@
 import os
 from git import Repo
+import requests
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
 from peft import LoraConfig, get_peft_model, PeftModel
@@ -889,6 +890,46 @@ def open_finetuned_folder():
             os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
 
 
+def download_model(model_name_llm, model_name_sd):
+    if not model_name_llm and not model_name_sd:
+        return "Please select a model to download"
+
+    if model_name_llm and model_name_sd:
+        return "Please select one model type for downloading"
+
+    if model_name_llm:
+        model_url = ""
+        if model_name_llm == "StableLM2-1_6B-Chat":
+            model_url = "https://huggingface.co/stabilityai/stablelm-2-1_6b-chat"
+        elif model_name_llm == "Qwen1.5-4B-Chat":
+            model_url = "https://huggingface.co/Qwen/Qwen1.5-4B-Chat"
+        model_path = os.path.join("models", "llm", model_name_llm)
+
+        if model_url:
+            response = requests.get(model_url, allow_redirects=True)
+            with open(model_path, "wb") as file:
+                file.write(response.content)
+            return f"LLM model {model_name_llm} downloaded successfully!"
+        else:
+            return "Invalid LLM model name"
+
+    if model_name_sd:
+        model_url = ""
+        if model_name_sd == "StableDiffusion1.5":
+            model_url = "https://huggingface.co/runwayml/stable-diffusion-v1-5"
+        elif model_name_sd == "StableDiffusionXL":
+            model_url = "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0"
+        model_path = os.path.join("models", "sd", model_name_sd)
+
+        if model_url:
+            response = requests.get(model_url, allow_redirects=True)
+            with open(model_path, "wb") as file:
+                file.write(response.content)
+            return f"StableDiffusion model {model_name_sd} downloaded successfully!"
+        else:
+            return "Invalid StableDiffusion model name"
+
+
 def settings_interface(share_value):
     global share_mode
     share_mode = share_value == "True"
@@ -1059,6 +1100,20 @@ sd_generate_interface = gr.Interface(
     allow_flagging="never",
 )
 
+model_downloader_interface = gr.Interface(
+    fn=download_model,
+    inputs=[
+        gr.Dropdown(choices=[None, "StableLM2-1_6B-Chat", "Qwen1.5-4B-Chat"], label="Download LLM model", value=None),
+        gr.Dropdown(choices=[None, "StableDiffusion1.5", "StableDiffusionXL"], label="Download StableDiffusion model", value=None),
+    ],
+    outputs=[
+        gr.Textbox(label="Message", type="text"),
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - ModelDownloader",
+    description="This user interface allows you to download LLM and StableDiffusion models",
+    allow_flagging="never",
+)
+
 settings_interface = gr.Interface(
     fn=settings_interface,
     inputs=[
@@ -1094,8 +1149,8 @@ with gr.TabbedInterface([gr.TabbedInterface([llm_finetune_interface, llm_evaluat
                                             tab_names=["Finetune", "Evaluate", "Generate"]),
                          gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
                                             tab_names=["Finetune", "Evaluate", "Conversion", "Generate"]),
-                         settings_interface, system_interface],
-                        tab_names=["LLM", "StableDiffusion", "Settings", "System"]) as app:
+                         model_downloader_interface, settings_interface, system_interface],
+                        tab_names=["LLM", "StableDiffusion", "Settings", "ModelDownloader", "System"]) as app:
     close_button = gr.Button("Close terminal")
     close_button.click(close_terminal, [], [], queue=False)
 

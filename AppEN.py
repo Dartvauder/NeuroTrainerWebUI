@@ -3,7 +3,7 @@ from git import Repo
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
 from peft import LoraConfig, get_peft_model, PeftModel
-from diffusers import StableDiffusionPipeline, DDPMScheduler
+from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline, DDPMScheduler
 from datasets import load_dataset
 import matplotlib.pyplot as plt
 import numpy as np
@@ -512,7 +512,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
         output_dir = os.path.join("finetuned-models/sd/full", model_output_name)
         if model_type == "SD":
             args = [
-                "accelerate", "launch", "trainer-scripts/train_dreambooth.py",
+                "accelerate", "launch", "trainer-scripts/sd/train_dreambooth.py",
                 f"--pretrained_model_name_or_path={model_path}",
                 f"--instance_data_dir={dataset_path}",
                 f"--output_dir={output_dir}",
@@ -529,7 +529,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
             ]
         elif model_type == "SDXL":
             args = [
-                "accelerate", "launch", "trainer-scripts/train_text_to_image_sdxl.py",
+                "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_sdxl.py",
                 f"--pretrained_model_name_or_path={model_path}",
                 f"--instance_data_dir={dataset_path}",
                 f"--output_dir={output_dir}",
@@ -548,7 +548,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
         output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
         if model_type == "SD":
             args = [
-                "accelerate", "launch", "trainer-scripts/train_dreambooth_lora.py",
+                "accelerate", "launch", "trainer-scripts/sd/train_dreambooth_lora.py",
                 f"--pretrained_model_name_or_path={model_path}",
                 f"--instance_data_dir={dataset_path}",
                 f"--output_dir={output_dir}",
@@ -568,7 +568,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
             ]
         elif model_type == "SDXL":
             args = [
-                "accelerate", "launch", "trainer-scripts/train_dreambooth_lora_sdxl.py",
+                "accelerate", "launch", "trainer-scripts/sd/train_dreambooth_lora_sdxl.py",
                 f"--pretrained_model_name_or_path={model_path}",
                 f"--instance_data_dir={dataset_path}",
                 f"--output_dir={output_dir}",
@@ -667,19 +667,35 @@ def plot_sd_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_sd(model_name, lora_model_name, dataset_name, model_type, user_prompt, num_inference_steps, cfg_scale):
-    if model_type == "Diffusers":
-        model_path = os.path.join("finetuned-models/sd/full", model_name)
-        model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(
-            "cuda")
-    elif model_type == "Safetensors":
-        model_path = os.path.join("finetuned-models/sd/full", model_name)
-        model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16, safety_checker=None).to(
-            "cuda")
+def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_type, user_prompt, num_inference_steps, cfg_scale):
+    if model_method == "Diffusers":
+        if model_type == "SD":
+            model_path = os.path.join("finetuned-models/sd/full", model_name)
+            model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16,
+                                                            safety_checker=None).to(
+                "cuda")
+            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+        elif model_type == "SDXL":
+            model_path = os.path.join("finetuned-models/sd/full", model_name)
+            model = StableDiffusionXLPipeline.from_pretrained(model_path, torch_dtype=torch.float16, attention_slice=1,
+                                                              safety_checker=None).to(
+                "cuda")
+            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+    elif model_method == "Safetensors":
+        if model_type == "SD":
+            model_path = os.path.join("finetuned-models/sd/full", model_name)
+            model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16,
+                                                             safety_checker=None).to(
+                "cuda")
+            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+        elif model_type == "SDXL":
+            model_path = os.path.join("finetuned-models/sd/full", model_name)
+            model = StableDiffusionXLPipeline.from_single_file(model_path, torch_dtype=torch.float16, attention_slice=1,
+                                                               safety_checker=None).to(
+                "cuda")
+            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
     else:
         return "Invalid model type selected", None
-
-    model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
     if not model_name:
         return "Please select the model", None
@@ -763,37 +779,67 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_type, user_prom
     return f"Evaluation completed successfully. Results saved to {plot_path}", fig
 
 
-def convert_sd_model_to_safetensors(model_name):
+def convert_sd_model_to_safetensors(model_name, model_type):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
     output_path = os.path.join(model_path, f"{model_name}.safetensors")
 
-    try:
-        subprocess.run([
-            "py",
-            "trainer-scripts/convert_diffusers_to_original_stable_diffusion.py",
-            "--model_path", model_path,
-            "--checkpoint_path", output_path,
-            "--use_safetensors"
-        ], check=True)
+    if model_type == "SD":
+        try:
+            subprocess.run([
+                "py",
+                "trainer-scripts/sd/convert_diffusers_to_original_stable_diffusion.py",
+                "--model_path", model_path,
+                "--checkpoint_path", output_path,
+                "--use_safetensors"
+            ], check=True)
 
-        return f"Model successfully converted to safetensors and saved to {output_path}"
-    except subprocess.CalledProcessError as e:
-        return f"Error converting model to safetensors: {e}"
+            return f"Model successfully converted to safetensors and saved to {output_path}"
+        except subprocess.CalledProcessError as e:
+            return f"Error converting model to safetensors: {e}"
+    elif model_type == "SDXL":
+        try:
+            subprocess.run([
+                "py",
+                "trainer-scripts/sd/convert_diffusers_to_original_sdxl.py",
+                "--model_path", model_path,
+                "--checkpoint_path", output_path,
+                "--use_safetensors"
+            ], check=True)
+
+            return f"Model successfully converted to safetensors and saved to {output_path}"
+        except subprocess.CalledProcessError as e:
+            return f"Error converting model to safetensors: {e}"
 
 
-def generate_image(model_name, lora_model_name, model_type, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
-    if model_type == "Diffusers":
-        model_path = os.path.join("finetuned-models/sd/full", model_name)
-        model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(
-            "cuda")
-    elif model_type == "Safetensors":
-        model_path = os.path.join("finetuned-models/sd/full", model_name)
-        model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16, safety_checker=None).to(
-            "cuda")
+def generate_image(model_name, lora_model_name, model_method, model_type, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
+    if model_method == "Diffusers":
+        if model_type == "SD":
+            model_path = os.path.join("finetuned-models/sd/full", model_name)
+            model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16,
+                                                            safety_checker=None).to(
+                "cuda")
+            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+        elif model_type == "SDXL":
+            model_path = os.path.join("finetuned-models/sd/full", model_name)
+            model = StableDiffusionXLPipeline.from_pretrained(model_path, torch_dtype=torch.float16, attention_slice=1,
+                                                            safety_checker=None).to(
+                "cuda")
+            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+    elif model_method == "Safetensors":
+        if model_type == "SD":
+            model_path = os.path.join("finetuned-models/sd/full", model_name)
+            model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16,
+                                                            safety_checker=None).to(
+                "cuda")
+            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+        elif model_type == "SDXL":
+            model_path = os.path.join("finetuned-models/sd/full", model_name)
+            model = StableDiffusionXLPipeline.from_single_file(model_path, torch_dtype=torch.float16, attention_slice=1,
+                                                              safety_checker=None).to(
+                "cuda")
+            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
     else:
         return "Invalid model type selected", None
-
-    model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
 
     if not model_name:
         return "Please select the model", None
@@ -948,7 +994,8 @@ sd_evaluate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
         gr.Dropdown(choices=get_available_sd_lora_models(), label="LORA Model (optional)"),
         gr.Dropdown(choices=get_available_sd_datasets(), label="Dataset"),
-        gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label="Model Type"),
+        gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label="Model Method"),
+        gr.Radio(choices=["SD", "SDXL"], value="SD", label="Model Type"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),
         gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label="CFG"),
@@ -966,6 +1013,7 @@ sd_convert_interface = gr.Interface(
     fn=convert_sd_model_to_safetensors,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
+        gr.Radio(choices=["SD", "SDXL"], value="SD", label="Model Type"),
     ],
     outputs=[
         gr.Textbox(label="Conversion Status", type="text"),
@@ -980,7 +1028,8 @@ sd_generate_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label="Model"),
         gr.Dropdown(choices=get_available_sd_lora_models(), label="LORA Model (optional)"),
-        gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label="Model Type"),
+        gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label="Model Method"),
+        gr.Radio(choices=["SD", "SDXL"], value="SD", label="Model Type"),
         gr.Textbox(label="Prompt", type="text"),
         gr.Textbox(label="Negative Prompt", type="text"),
         gr.Slider(minimum=1, maximum=150, value=30, step=1, label="Steps"),

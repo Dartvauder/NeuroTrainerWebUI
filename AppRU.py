@@ -8,6 +8,7 @@ from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline, DDPMSc
 from datasets import load_dataset
 import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image
 import torch
 from bert_score import score
 import evaluate
@@ -191,6 +192,23 @@ def load_model_and_tokenizer(model_name, finetuned=False):
     except Exception as e:
         print(f"Error loading model and tokenizer: {e}")
         return None, None
+
+
+def create_or_update_llm_dataset(file_name, existing_file, instruction, input_text, output_text):
+    if existing_file:
+        file_path = os.path.join("datasets", "llm", existing_file.name)
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        data.append({"instruction": instruction, "input": input_text, "output": output_text})
+        with open(file_path, "w") as f:
+            json.dump(data, f, indent=2)
+        return f"New column added to the existing file: {existing_file.name}"
+    else:
+        file_path = os.path.join("datasets", "llm", f"{file_name}.json")
+        data = [{"instruction": instruction, "input": input_text, "output": output_text}]
+        with open(file_path, "w") as f:
+            json.dump(data, f, indent=2)
+        return f"New dataset file created: {file_name}.json"
 
 
 def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, epochs, batch_size, learning_rate,
@@ -512,6 +530,28 @@ def generate_text(model_name, lora_model_name, prompt, max_length, temperature, 
     except Exception as e:
         print(f"Error during text generation: {e}")
         return None, f"Text generation failed. Error: {e}"
+
+
+def create_sd_dataset(image_files, dataset_name, file_prefix, prompt_text):
+    dataset_dir = os.path.join("datasets", "sd", dataset_name, "train")
+    os.makedirs(dataset_dir, exist_ok=True)
+
+    metadata_file = os.path.join(dataset_dir, "metadata.jsonl")
+
+    with open(metadata_file, "w") as f:
+        for i, image_file in enumerate(image_files):
+            file_name = f"{file_prefix}-{i+1}.jpg"
+            image_path = os.path.join(dataset_dir, file_name)
+            image = Image.open(image_file.name)
+            image.save(image_path)
+
+            metadata = {
+                "file_name": file_name,
+                "text": prompt_text
+            }
+            f.write(json.dumps(metadata) + "\n")
+
+    return f"Dataset created successfully at {dataset_dir}"
 
 
 def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_output_name, resolution,
@@ -986,6 +1026,23 @@ def settings_interface(share_value):
 
 share_mode = False
 
+llm_dataset_interface = gr.Interface(
+    fn=create_or_update_llm_dataset,
+    inputs=[
+        gr.Textbox(label="Dataset Name", type="text"),
+        gr.Dropdown(choices=get_available_llm_datasets(), label="Existing Dataset File (optional)"),
+        gr.Textbox(label="Instruction", type="text"),
+        gr.Textbox(label="Input", type="text"),
+        gr.Textbox(label="Output", type="text"),
+    ],
+    outputs=[
+        gr.Textbox(label="Status", type="text"),
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - LLM-Dataset",
+    description="Create a new dataset file or add a new column to an existing file",
+    allow_flagging="never",
+)
+
 llm_finetune_interface = gr.Interface(
     fn=finetune_llm,
     inputs=[
@@ -1052,6 +1109,22 @@ llm_generate_interface = gr.Interface(
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Generate",
     description="Generate text using LLM models",
+    allow_flagging="never",
+)
+
+sd_dataset_interface = gr.Interface(
+    fn=create_sd_dataset,
+    inputs=[
+        gr.Files(label="Image Files"),
+        gr.Textbox(label="Dataset Name"),
+        gr.Textbox(label="Files Name"),
+        gr.Textbox(label="Prompt Text")
+    ],
+    outputs=[
+        gr.Textbox(label="Status")
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Dataset",
+    description="Create a dataset for Stable Diffusion",
     allow_flagging="never",
 )
 
@@ -1188,10 +1261,10 @@ system_interface = gr.Interface(
     allow_flagging="never",
 )
 
-with gr.TabbedInterface([gr.TabbedInterface([llm_finetune_interface, llm_evaluate_interface, llm_generate_interface],
-                                            tab_names=["Finetune", "Evaluate", "Generate"]),
-                         gr.TabbedInterface([sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
-                                            tab_names=["Finetune", "Evaluate", "Conversion", "Generate"]),
+with gr.TabbedInterface([gr.TabbedInterface([llm_dataset_interface, llm_finetune_interface, llm_evaluate_interface, llm_generate_interface],
+                                            tab_names=["Dataset", "Finetune", "Evaluate", "Generate"]),
+                         gr.TabbedInterface([sd_dataset_interface, sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
+                                            tab_names=["Dataset", "Finetune", "Evaluate", "Conversion", "Generate"]),
                          model_downloader_interface, settings_interface, system_interface],
                         tab_names=["LLM", "StableDiffusion", "Settings", "ModelDownloader", "System"]) as app:
     close_button = gr.Button("Close terminal")

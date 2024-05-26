@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from bert_score import score
+import evaluate
 import json
 from datetime import datetime
 from torchmetrics.image.fid import FrechetInceptionDistance
@@ -23,6 +24,7 @@ import GPUtil
 from cpuinfo import get_cpu_info
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
 import sacrebleu
+from sacrebleu import corpus_chrf
 from rouge import Rouge
 import subprocess
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
@@ -306,13 +308,13 @@ def plot_llm_evaluation_metrics(metrics):
     if metrics is None:
         return None
 
-    metrics_to_plot = ['bleu', 'bert', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision']
+    metrics_to_plot = ['bleu', 'bert', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision', 'perplexity', 'squad', 'chrf']
     metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
     bar_width = 0.6
     x = range(len(metrics_to_plot))
-    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'])
+    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf', '#aec7e8'])
 
     ax.set_xticks(x)
     ax.set_xticklabels(metrics_to_plot, rotation=45, ha='right')
@@ -411,6 +413,13 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
         accuracy = accuracy_score(binary_references, binary_predictions)
         precision = precision_score(binary_references, binary_predictions)
 
+        perplexity = evaluate.load("perplexity")
+        squad = evaluate.load("squad")
+
+        perplexity_score = perplexity.compute(predictions=predictions, model_id=model_name)["perplexity"]
+        squad_score = squad.compute(predictions=predictions, references=references)["f1"]
+        chrf_score = corpus_chrf(predictions, references)
+
         extracted_metrics = {
             'bleu': bleu_score,
             'bert': bert_score,
@@ -419,7 +428,10 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
             'rouge-l': rouge_scores['rouge-l']['f'],
             'mauve': mauve_score,
             'accuracy': accuracy,
-            'precision': precision
+            'precision': precision,
+            'perplexity': perplexity_score,
+            'squad': squad_score,
+            'chrf': chrf_score.score
         }
 
         fig = plot_llm_evaluation_metrics(extracted_metrics)

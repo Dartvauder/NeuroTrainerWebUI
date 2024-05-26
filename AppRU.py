@@ -494,9 +494,9 @@ def generate_text(model_name, lora_model_name, prompt, max_length, temperature, 
         return None, f"Text generation failed. Error: {e}"
 
 
-def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_output_name, instance_prompt, resolution,
+def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_output_name, resolution,
                 train_batch_size, gradient_accumulation_steps,
-                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, checkpointing_steps, validation_epochs):
+                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, rank):
     model_path = os.path.join("models/sd", model_name)
     dataset_path = os.path.join("datasets/sd", dataset_name)
 
@@ -512,12 +512,12 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
     if finetune_method == "Full":
         output_dir = os.path.join("finetuned-models/sd/full", model_output_name)
         if model_type == "SD":
+            dataset = load_dataset("imagefolder", data_dir=dataset_path)
             args = [
-                "accelerate", "launch", "trainer-scripts/sd/train_dreambooth.py",
+                "accelerate", "launch", "trainer-scripts/sd/train_text_to_image.py",
                 f"--pretrained_model_name_or_path={model_path}",
-                f"--instance_data_dir={dataset_path}",
+                f"--train_data_dir={dataset_path}",
                 f"--output_dir={output_dir}",
-                f"--instance_prompt={instance_prompt}",
                 f"--resolution={resolution}",
                 f"--train_batch_size={train_batch_size}",
                 f"--gradient_accumulation_steps={gradient_accumulation_steps}",
@@ -525,16 +525,17 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--lr_scheduler={lr_scheduler}",
                 f"--lr_warmup_steps={lr_warmup_steps}",
                 f"--max_train_steps={max_train_steps}",
+                f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
         elif model_type == "SDXL":
+            dataset = load_dataset("imagefolder", data_dir=dataset_path)
             args = [
                 "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_sdxl.py",
                 f"--pretrained_model_name_or_path={model_path}",
-                f"--instance_data_dir={dataset_path}",
+                f"--train_data_dir={dataset_path}",
                 f"--output_dir={output_dir}",
-                f"--instance_prompt={instance_prompt}",
                 f"--resolution={resolution}",
                 f"--train_batch_size={train_batch_size}",
                 f"--gradient_accumulation_steps={gradient_accumulation_steps}",
@@ -542,48 +543,46 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--lr_scheduler={lr_scheduler}",
                 f"--lr_warmup_steps={lr_warmup_steps}",
                 f"--max_train_steps={max_train_steps}",
+                f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
     elif finetune_method == "LORA":
         output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
         if model_type == "SD":
+            dataset = load_dataset("imagefolder", data_dir=dataset_path)
             args = [
-                "accelerate", "launch", "trainer-scripts/sd/train_dreambooth_lora.py",
+                "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora.py",
                 f"--pretrained_model_name_or_path={model_path}",
-                f"--instance_data_dir={dataset_path}",
+                f"--train_data_dir={dataset_path}",
                 f"--output_dir={output_dir}",
-                f"--instance_prompt={instance_prompt}",
                 f"--resolution={resolution}",
                 f"--train_batch_size={train_batch_size}",
                 f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                f"--checkpointing_steps={checkpointing_steps}",
                 f"--learning_rate={learning_rate}",
                 f"--lr_scheduler={lr_scheduler}",
                 f"--lr_warmup_steps={lr_warmup_steps}",
                 f"--max_train_steps={max_train_steps}",
-                f"--validation_prompt={instance_prompt}",
-                f"--validation_epochs={validation_epochs}",
+                f"--rank={rank}",
+                f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
         elif model_type == "SDXL":
             args = [
-                "accelerate", "launch", "trainer-scripts/sd/train_dreambooth_lora_sdxl.py",
+                "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora_sdxl.py",
                 f"--pretrained_model_name_or_path={model_path}",
-                f"--instance_data_dir={dataset_path}",
+                f"--train_data_dir={dataset_path}",
                 f"--output_dir={output_dir}",
-                f"--instance_prompt={instance_prompt}",
                 f"--resolution={resolution}",
                 f"--train_batch_size={train_batch_size}",
                 f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                f"--checkpointing_steps={checkpointing_steps}",
                 f"--learning_rate={learning_rate}",
                 f"--lr_scheduler={lr_scheduler}",
                 f"--lr_warmup_steps={lr_warmup_steps}",
                 f"--max_train_steps={max_train_steps}",
-                f"--validation_prompt={instance_prompt}",
-                f"--validation_epochs={validation_epochs}",
+                f"--rank={rank}",
+                f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
@@ -593,7 +592,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
     subprocess.run(args)
 
     if finetune_method == "Full":
-        logs_dir = os.path.join(output_dir, "logs", "dreambooth")
+        logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
         events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
         latest_event_file = sorted(events_files)[-1]
         event_file_path = os.path.join(logs_dir, latest_event_file)
@@ -619,7 +618,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
         return f"Fine-tuning completed. Model saved at: {output_dir}", fig
 
     elif finetune_method == "LORA":
-        logs_dir = os.path.join(output_dir, "logs", "dreambooth-lora")
+        logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
         events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
         latest_event_file = sorted(events_files)[-1]
         event_file_path = os.path.join(logs_dir, latest_event_file)
@@ -1019,7 +1018,6 @@ sd_finetune_interface = gr.Interface(
         gr.Radio(choices=["SD", "SDXL"], value="SD", label="Model Type"),
         gr.Radio(choices=["Full", "LORA"], value="Full", label="Finetune Method"),
         gr.Textbox(label="Output Model Name", type="text"),
-        gr.Textbox(label="Instance Prompt", type="text"),
         gr.Number(value=512, label="Resolution"),
         gr.Number(value=1, label="Train Batch Size"),
         gr.Number(value=1, label="Gradient Accumulation Steps"),
@@ -1027,8 +1025,7 @@ sd_finetune_interface = gr.Interface(
         gr.Textbox(value="constant", label="LR Scheduler"),
         gr.Number(value=0, label="LR Warmup Steps"),
         gr.Number(value=400, label="Max Train Steps"),
-        gr.Number(value=100, label="Checkpointing Steps (LORA)"),
-        gr.Number(value=50, label="Validation Epochs (LORA)"),
+        gr.Number(value=4, label="LORA Rank"),
     ],
     outputs=[
         gr.Textbox(label="Finetuning Status", type="text"),

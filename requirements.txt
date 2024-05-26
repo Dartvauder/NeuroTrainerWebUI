@@ -19,6 +19,7 @@ diffusers==0.27.2
 dill==0.3.8
 dnspython==2.6.1
 email_validator==2.1.1
+evaluate==0.4.2
 faiss-cpu==1.8.0
 fastapi==0.111.0
 fastapi-cli==0.0.3

@@ -9,9 +9,9 @@ A simple and convenient interface for using of various neural network models. Yo
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/5dd7e341-e8e8-45dd-83ca-29895f6a35cc)
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/cde11dfe-d512-4467-bd5d-e30c321d065a)
 
-### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/db7c4904-e7cf-4525-b244-babb51c41912)
+### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/efc2b8b3-efea-4f4e-9893-5fbc2d29d6db)
 
 ### ModelDownloader: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/42a4fbf6-f57f-45c9-a0f9-4de53f856ae5)
 
@@ -27,6 +27,7 @@ The goal of the project - to create the easiest possible application to finetune
 * Support for Transformers finetune, evaluate and generate (LLM)
 * Support for Diffusers and Safetensors finetune, evaluate, conversion and generate (StableDiffusion)
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
+* Ability to create a dataset (For LLM and StableDiffusion)
 * ModelDownloader (For LLM and StableDiffusion)
 * Application settings
 * Ability to see system sensors
@@ -73,7 +74,12 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 #### Interface has five tabs: LLM, StableDiffusion, ModelDownloader, Settings and System. Select the one you need and follow the instructions below 
 
-### LLM - has three sub-tabs:
+### LLM - has four sub-tabs:
+
+#### Dataset:
+
+* Here you can create a new or expand an existing dataset
+* Datasets are saved in a folder *datasets/llm*
 
 #### Finetune:
 
@@ -100,7 +106,12 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 3) Set up the models parameters to generate
 4) Click the `Submit` button to receive the generated text
 
-### StableDiffusion - has four sub-tabs:
+### StableDiffusion - has five sub-tabs:
+
+#### Dataset:
+
+* Here you can create a new or expand an existing dataset
+* Datasets are saved in a folder *datasets/sd*
 
 #### Finetune:
 

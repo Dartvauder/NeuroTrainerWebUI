@@ -173,7 +173,7 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 ## Where can i get models and datasets?
 
 * LLM and StableDiffusion models can be taken from [HuggingFace](https://huggingface.co/models)
-* LLM and StableDiffusion datasets can be taken from [HuggingFace](https://huggingface.co/datasets)
+* LLM and StableDiffusion datasets can be taken from [HuggingFace](https://huggingface.co/datasets) or you can also create your datasets
 
 ## Wiki
 

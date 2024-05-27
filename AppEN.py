@@ -11,9 +11,9 @@ import numpy as np
 from PIL import Image
 import torch
 from bert_score import score
-import evaluate
 import json
 from datetime import datetime
+from torchmetrics.text.chrf import CHRFScore
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.kid import KernelInceptionDistance
 from torchmetrics.image.inception import InceptionScore
@@ -21,11 +21,8 @@ from torchmetrics.image.vif import VisualInformationFidelity
 from torchvision.transforms import Resize
 from torchmetrics.multimodal.clip_score import CLIPScore
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
-from torchmetrics.image.perceptual_path_length import PerceptualPathLength
-from torchmetrics.image.mifid import MemorizationInformedFrechetInceptionDistance
 from torchmetrics.image.scc import SpatialCorrelationCoefficient
 from torchmetrics.image import SpectralDistortionIndex
-from torchmetrics.image import SpatialDistortionIndex
 from torchmetrics.image import SpectralAngleMapper
 from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
 import psutil
@@ -33,7 +30,6 @@ import GPUtil
 from cpuinfo import get_cpu_info
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
 import sacrebleu
-from sacrebleu import corpus_chrf
 from rouge import Rouge
 import subprocess
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
@@ -334,13 +330,13 @@ def plot_llm_evaluation_metrics(metrics):
     if metrics is None:
         return None
 
-    metrics_to_plot = ['bleu', 'bert', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision', 'perplexity', 'squad', 'chrf']
+    metrics_to_plot = ['bleu', 'bert', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision', 'chrf']
     metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
     bar_width = 0.6
     x = range(len(metrics_to_plot))
-    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf', '#aec7e8'])
+    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#aec7e8'])
 
     ax.set_xticks(x)
     ax.set_xticklabels(metrics_to_plot, rotation=45, ha='right')
@@ -439,12 +435,10 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
         accuracy = accuracy_score(binary_references, binary_predictions)
         precision = precision_score(binary_references, binary_predictions)
 
-        perplexity = evaluate.load("perplexity")
-        squad = evaluate.load("squad")
-
-        perplexity_score = perplexity.compute(predictions=predictions, model_id=model_name)["perplexity"]
-        squad_score = squad.compute(predictions=predictions, references=references)["f1"]
-        chrf_score = corpus_chrf(predictions, references)
+        chrf_metric = CHRFScore()
+        for reference, prediction in zip(references, predictions):
+            chrf_metric.update(prediction, reference)
+        chrf_score = chrf_metric.compute().item()
 
         extracted_metrics = {
             'bleu': bleu_score,
@@ -455,9 +449,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
             'mauve': mauve_score,
             'accuracy': accuracy,
             'precision': precision,
-            'perplexity': perplexity_score,
-            'squad': squad_score,
-            'chrf': chrf_score.score
+            'chrf': chrf_score
         }
 
         fig = plot_llm_evaluation_metrics(extracted_metrics)
@@ -709,13 +701,13 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
 
 
 def plot_sd_evaluation_metrics(metrics):
-    metrics_to_plot = ["FID", "KID", "Inception Score", "VIF", "CLIP Score", "LPIPS", "PPL", "MIFID", "SCC", "SDI", "SPDI", "SAM", "SSIM"]
+    metrics_to_plot = ["FID", "KID", "Inception Score", "VIF", "CLIP Score", "LPIPS", "SCC", "SDI", "SAM", "SSIM"]
     metric_values = [metrics[metric] for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
     bar_width = 0.6
     x = range(len(metrics_to_plot))
-    bars = ax.bar(x, metric_values, width=bar_width, align="center", color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf', '#1a55FF', '#aaffc3', '#ffe119'])
+    bars = ax.bar(x, metric_values, width=bar_width, align="center", color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#bcbd22', '#17becf', '#aaffc3', '#ffe119'])
 
     ax.set_xticks(x)
     ax.set_xticklabels(metrics_to_plot, rotation=45, ha="right")
@@ -785,11 +777,8 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
     inception = InceptionScore().to("cuda")
     vif = VisualInformationFidelity().to("cuda")
     lpips = LearnedPerceptualImagePatchSimilarity().to("cuda")
-    ppl = PerceptualPathLength().to("cuda")
-    mifid = MemorizationInformedFrechetInceptionDistance().to("cuda")
     scc = SpatialCorrelationCoefficient().to("cuda")
     sdi = SpectralDistortionIndex().to("cuda")
-    spdi = SpatialDistortionIndex().to("cuda")
     sam = SpectralAngleMapper().to("cuda")
     ssim = StructuralSimilarityIndexMeasure().to("cuda")
 
@@ -827,11 +816,8 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
         vif.update(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
 
         lpips_score = lpips(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
-        ppl_score = ppl(resize(generated_image_tensor).to(torch.float32))
-        mifid_score = mifid(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
         scc_score = scc(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
         sdi_score = sdi(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
-        spdi_score = spdi(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
         sam_score = sam(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
         ssim_score = ssim(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
 
@@ -851,11 +837,8 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
         "VIF": vif_score.item(),
         "CLIP Score": clip_score_avg,
         "LPIPS": lpips_score.item(),
-        "PPL": ppl_score.item(),
-        "MIFID": mifid_score.item(),
         "SCC": scc_score.item(),
         "SDI": sdi_score.item(),
-        "SPDI": spdi_score.item(),
         "SAM": sam_score.item(),
         "SSIM": ssim_score.item()
     }
@@ -971,6 +954,24 @@ def close_terminal():
 
 def open_finetuned_folder():
     outputs_folder = "finetuned-models"
+    if os.path.exists(outputs_folder):
+        if os.name == "nt":
+            os.startfile(outputs_folder)
+        else:
+            os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
+
+
+def open_datasets_folder():
+    outputs_folder = "datasets"
+    if os.path.exists(outputs_folder):
+        if os.name == "nt":
+            os.startfile(outputs_folder)
+        else:
+            os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
+
+
+def open_outputs_folder():
+    outputs_folder = "outputs"
     if os.path.exists(outputs_folder):
         if os.name == "nt":
             os.startfile(outputs_folder)
@@ -1275,8 +1276,14 @@ with gr.TabbedInterface([gr.TabbedInterface([llm_dataset_interface, llm_finetune
     close_button = gr.Button("Close terminal")
     close_button.click(close_terminal, [], [], queue=False)
 
-    folder_button = gr.Button("Folder")
+    folder_button = gr.Button("Finetuned-models")
     folder_button.click(open_finetuned_folder, [], [], queue=False)
+
+    folder_button = gr.Button("Datasets")
+    folder_button.click(open_datasets_folder, [], [], queue=False)
+
+    folder_button = gr.Button("Outputs")
+    folder_button.click(open_outputs_folder, [], [], queue=False)
 
     github_link = gr.HTML(
         '<div style="text-align: center; margin-top: 20px;">'

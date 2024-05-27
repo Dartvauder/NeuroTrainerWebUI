@@ -54,7 +54,7 @@ The goal of the project - to create the easiest possible application to finetune
 2) Run the `Install.bat` and wait for installation
 3) After installation, run `Start.bat`
 4) Select the file version and wait for the application to launch
-5) Now you can start generating!
+5) Now you can start experiment with your models!
 
 To get update, run `Update.bat`
 To work with the virtual environment through the terminal, run `Venv.bat`
@@ -65,7 +65,7 @@ To work with the virtual environment through the terminal, run `Venv.bat`
 2) In the terminal, run the `./Install.sh` and wait for installation of all dependencies
 3) After installation, run `./Start.sh`
 4) Wait for the application to launch
-5) Now you can start generating!
+5) Now you can start experiment with your models!
 
 To get update, run `./Update.sh`
 To work with the virtual environment through the terminal, run `./Venv.sh`

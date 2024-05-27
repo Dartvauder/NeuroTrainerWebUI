@@ -1070,7 +1070,7 @@ llm_finetune_interface = gr.Interface(
         gr.Plot(label="Finetuning Loss")
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Finetune",
-    description="Finetune LLM models on a dataset",
+    description="Finetune LLM models on a custom dataset",
     allow_flagging="never",
 )
 
@@ -1091,7 +1091,7 @@ llm_evaluate_interface = gr.Interface(
         gr.Plot(label="Evaluation Metrics"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Evaluate",
-    description="Evaluate LLM models on a dataset",
+    description="Evaluate finetuned LLM models on a custom dataset",
     allow_flagging="never",
 )
 
@@ -1112,7 +1112,7 @@ llm_generate_interface = gr.Interface(
         gr.Textbox(label="Message", type="text"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Generate",
-    description="Generate text using LLM models",
+    description="Generate text using finetuned LLM models",
     allow_flagging="never",
 )
 
@@ -1155,7 +1155,7 @@ sd_finetune_interface = gr.Interface(
         gr.Plot(label="Finetuning Loss")
     ],
     title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Finetune",
-    description="Finetune Stable Diffusion models on a dataset",
+    description="Finetune Stable Diffusion models on a custom dataset",
     allow_flagging="never",
 )
 
@@ -1177,7 +1177,7 @@ sd_evaluate_interface = gr.Interface(
         gr.Plot(label="Evaluation Metrics"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - StabledDiffusion-Evaluate",
-    description="Evaluate Stable Diffusion models on a dataset",
+    description="Evaluate finetuned Stable Diffusion models on a custom dataset",
     allow_flagging="never",
 )
 
@@ -1193,7 +1193,7 @@ sd_convert_interface = gr.Interface(
         gr.Textbox(label="Conversion Status", type="text"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Conversion",
-    description="Convert Stable Diffusion models to single file (.ckpt or .safetensors)",
+    description="Convert finetuned Stable Diffusion models to single file (.ckpt or .safetensors)",
     allow_flagging="never",
 )
 
@@ -1217,7 +1217,7 @@ sd_generate_interface = gr.Interface(
         gr.Textbox(label="Message", type="text"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Generate",
-    description="Generate images using Stable Diffusion models",
+    description="Generate images using finetuned Stable Diffusion models",
     allow_flagging="never",
 )
 

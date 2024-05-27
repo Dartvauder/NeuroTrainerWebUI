@@ -5,17 +5,17 @@
 
 ## Description:
 
-A simple and convenient interface for using of various neural network models. You can finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also download the LLM and StableDiffusion models, change the application settings inside the interface and check system sensors
+A simple and convenient interface for using of various neural network models. You can create datasets, finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also download the LLM and StableDiffusion models, change the application settings inside the interface and check system sensors
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/5dd7e341-e8e8-45dd-83ca-29895f6a35cc)
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/15937ce5-a7b8-44e9-b4d6-322dceec3e2d)
 
-### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/db7c4904-e7cf-4525-b244-babb51c41912)
+### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/efc2b8b3-efea-4f4e-9893-5fbc2d29d6db)
 
-### ModelDownloader: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/42a4fbf6-f57f-45c9-a0f9-4de53f856ae5)
+### ModelDownloader: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/d8a3d599-9a71-4818-9352-0ee4240ac66e)
 
-### Settings: ![4](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/8bd096fe-b7f8-4e2f-b6f7-9e120e09b6a0)
+### Settings: ![4](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/889be1a2-69b1-4546-a928-5c86da700118)
 
 ### System: ![5](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/30dd30d6-0411-4add-bada-56fd2802d69a)
 
@@ -27,6 +27,7 @@ The goal of the project - to create the easiest possible application to finetune
 * Support for Transformers finetune, evaluate and generate (LLM)
 * Support for Diffusers and Safetensors finetune, evaluate, conversion and generate (StableDiffusion)
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
+* Ability to create a dataset (For LLM and StableDiffusion)
 * ModelDownloader (For LLM and StableDiffusion)
 * Application settings
 * Ability to see system sensors
@@ -73,7 +74,12 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 #### Interface has five tabs: LLM, StableDiffusion, ModelDownloader, Settings and System. Select the one you need and follow the instructions below 
 
-### LLM - has three sub-tabs:
+### LLM - has four sub-tabs:
+
+#### Dataset:
+
+* Here you can create a new or expand an existing dataset
+* Datasets are saved in a folder *datasets/llm*
 
 #### Finetune:
 
@@ -100,7 +106,12 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 3) Set up the models parameters to generate
 4) Click the `Submit` button to receive the generated text
 
-### StableDiffusion - has four sub-tabs:
+### StableDiffusion - has five sub-tabs:
+
+#### Dataset:
+
+* Here you can create a new or expand an existing dataset
+* Datasets are saved in a folder *datasets/sd*
 
 #### Finetune:
 
@@ -157,12 +168,12 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 1) All finetunes are saved in the *finetuned-models* folder
 2) You can press the `Clear` button to reset your selection
 3) You can turn off the application using the `Close terminal` button
-4) You can open the *finetuned-models* folder by clicking on the `Folder` button
+4) You can open the *finetuned-models*, *datasets*, and *outputs* folders by clicking on the folder name button
 
 ## Where can i get models and datasets?
 
-* LLM and StableDiffusion models can be taken from [HuggingFace](https://huggingface.co/models)
-* LLM and StableDiffusion datasets can be taken from [HuggingFace](https://huggingface.co/datasets)
+* LLM and StableDiffusion models can be taken from [HuggingFace](https://huggingface.co/models) or from ModelDownloader inside interface
+* LLM and StableDiffusion datasets can be taken from [HuggingFace](https://huggingface.co/datasets) or you can create own datasets inside interface
 
 ## Wiki
 

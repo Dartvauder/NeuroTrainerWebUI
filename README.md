@@ -5,7 +5,7 @@
 
 ## Description:
 
-A simple and convenient interface for using of various neural network models. You can finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also download the LLM and StableDiffusion models, change the application settings inside the interface and check system sensors
+A simple and convenient interface for using of various neural network models. You can create datasets, finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also download the LLM and StableDiffusion models, change the application settings inside the interface and check system sensors
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
@@ -172,8 +172,8 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 ## Where can i get models and datasets?
 
-* LLM and StableDiffusion models can be taken from [HuggingFace](https://huggingface.co/models)
-* LLM and StableDiffusion datasets can be taken from [HuggingFace](https://huggingface.co/datasets) or you can also create your datasets
+* LLM and StableDiffusion models can be taken from [HuggingFace](https://huggingface.co/models) or from ModelDownloader inside interface
+* LLM and StableDiffusion datasets can be taken from [HuggingFace](https://huggingface.co/datasets) or you can create own datasets inside interface
 
 ## Wiki
 

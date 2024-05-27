@@ -194,15 +194,15 @@ def load_model_and_tokenizer(model_name, finetuned=False):
         return None, None
 
 
-def create_or_update_llm_dataset(file_name, existing_file, instruction, input_text, output_text):
+def create_llm_dataset(file_name, existing_file, instruction, input_text, output_text):
     if existing_file:
-        file_path = os.path.join("datasets", "llm", existing_file.name)
+        file_path = os.path.join("datasets", "llm", existing_file)
         with open(file_path, "r") as f:
             data = json.load(f)
         data.append({"instruction": instruction, "input": input_text, "output": output_text})
         with open(file_path, "w") as f:
             json.dump(data, f, indent=2)
-        return f"New column added to the existing file: {existing_file.name}"
+        return f"New column added to the existing file: {existing_file}"
     else:
         file_path = os.path.join("datasets", "llm", f"{file_name}.json")
         data = [{"instruction": instruction, "input": input_text, "output": output_text}]
@@ -532,15 +532,19 @@ def generate_text(model_name, lora_model_name, prompt, max_length, temperature, 
         return None, f"Text generation failed. Error: {e}"
 
 
-def create_sd_dataset(image_files, dataset_name, file_prefix, prompt_text):
-    dataset_dir = os.path.join("datasets", "sd", dataset_name, "train")
+def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, prompt_text):
+    if existing_dataset:
+        dataset_dir = os.path.join("datasets", "sd", existing_dataset, "train")
+    else:
+        dataset_dir = os.path.join("datasets", "sd", dataset_name, "train")
+
     os.makedirs(dataset_dir, exist_ok=True)
 
     metadata_file = os.path.join(dataset_dir, "metadata.jsonl")
 
-    with open(metadata_file, "w") as f:
+    with open(metadata_file, "a") as f:
         for i, image_file in enumerate(image_files):
-            file_name = f"{file_prefix}-{i+1}.jpg"
+            file_name = f"{file_prefix}-{i + 1}.jpg"
             image_path = os.path.join(dataset_dir, file_name)
             image = Image.open(image_file.name)
             image.save(image_path)
@@ -551,7 +555,7 @@ def create_sd_dataset(image_files, dataset_name, file_prefix, prompt_text):
             }
             f.write(json.dumps(metadata) + "\n")
 
-    return f"Dataset created successfully at {dataset_dir}"
+    return f"Dataset {'updated' if existing_dataset else 'created'} successfully at {dataset_dir}"
 
 
 def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_output_name, resolution,
@@ -1027,10 +1031,10 @@ def settings_interface(share_value):
 share_mode = False
 
 llm_dataset_interface = gr.Interface(
-    fn=create_or_update_llm_dataset,
+    fn=create_llm_dataset,
     inputs=[
         gr.Textbox(label="Dataset Name", type="text"),
-        gr.Dropdown(choices=get_available_llm_datasets(), label="Existing Dataset File (optional)"),
+        gr.Dropdown(choices=get_available_llm_datasets(), label="Existing Dataset (optional)"),
         gr.Textbox(label="Instruction", type="text"),
         gr.Textbox(label="Input", type="text"),
         gr.Textbox(label="Output", type="text"),
@@ -1116,6 +1120,7 @@ sd_dataset_interface = gr.Interface(
     fn=create_sd_dataset,
     inputs=[
         gr.Files(label="Image Files"),
+        gr.Dropdown(choices=get_available_sd_datasets(), label="Existing Dataset (optional)"),
         gr.Textbox(label="Dataset Name"),
         gr.Textbox(label="Files Name"),
         gr.Textbox(label="Prompt Text")

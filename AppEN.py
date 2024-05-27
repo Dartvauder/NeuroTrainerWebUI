@@ -1043,7 +1043,7 @@ llm_dataset_interface = gr.Interface(
         gr.Textbox(label="Status", type="text"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Dataset",
-    description="Create a new dataset file or add a new column to an existing file",
+    description="Create a new dataset file or add a new column to an existing dataset",
     allow_flagging="never",
 )
 

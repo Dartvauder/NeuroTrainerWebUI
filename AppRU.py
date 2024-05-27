@@ -194,7 +194,7 @@ def load_model_and_tokenizer(model_name, finetuned=False):
         return None, None
 
 
-def create_llm_dataset(file_name, existing_file, instruction, input_text, output_text):
+def create_llm_dataset(existing_file, file_name, instruction, input_text, output_text):
     if existing_file:
         file_path = os.path.join("datasets", "llm", existing_file)
         with open(file_path, "r") as f:
@@ -1033,8 +1033,8 @@ share_mode = False
 llm_dataset_interface = gr.Interface(
     fn=create_llm_dataset,
     inputs=[
-        gr.Textbox(label="Dataset Name", type="text"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Existing Dataset (optional)"),
+        gr.Textbox(label="Dataset Name", type="text"),
         gr.Textbox(label="Instruction", type="text"),
         gr.Textbox(label="Input", type="text"),
         gr.Textbox(label="Output", type="text"),

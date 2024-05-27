@@ -21,11 +21,8 @@ from torchmetrics.image.vif import VisualInformationFidelity
 from torchvision.transforms import Resize
 from torchmetrics.multimodal.clip_score import CLIPScore
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
-from torchmetrics.image.perceptual_path_length import PerceptualPathLength
-from torchmetrics.image.mifid import MemorizationInformedFrechetInceptionDistance
 from torchmetrics.image.scc import SpatialCorrelationCoefficient
 from torchmetrics.image import SpectralDistortionIndex
-from torchmetrics.image import SpatialDistortionIndex
 from torchmetrics.image import SpectralAngleMapper
 from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
 import psutil
@@ -704,13 +701,13 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
 
 
 def plot_sd_evaluation_metrics(metrics):
-    metrics_to_plot = ["FID", "KID", "Inception Score", "VIF", "CLIP Score", "LPIPS", "PPL", "MIFID", "SCC", "SDI", "SPDI", "SAM", "SSIM"]
+    metrics_to_plot = ["FID", "KID", "Inception Score", "VIF", "CLIP Score", "LPIPS", "SCC", "SDI", "SAM", "SSIM"]
     metric_values = [metrics[metric] for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
     bar_width = 0.6
     x = range(len(metrics_to_plot))
-    bars = ax.bar(x, metric_values, width=bar_width, align="center", color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf', '#1a55FF', '#aaffc3', '#ffe119'])
+    bars = ax.bar(x, metric_values, width=bar_width, align="center", color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#bcbd22', '#17becf', '#aaffc3', '#ffe119'])
 
     ax.set_xticks(x)
     ax.set_xticklabels(metrics_to_plot, rotation=45, ha="right")
@@ -780,11 +777,8 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
     inception = InceptionScore().to("cuda")
     vif = VisualInformationFidelity().to("cuda")
     lpips = LearnedPerceptualImagePatchSimilarity().to("cuda")
-    ppl = PerceptualPathLength().to("cuda")
-    mifid = MemorizationInformedFrechetInceptionDistance().to("cuda")
     scc = SpatialCorrelationCoefficient().to("cuda")
     sdi = SpectralDistortionIndex().to("cuda")
-    spdi = SpatialDistortionIndex().to("cuda")
     sam = SpectralAngleMapper().to("cuda")
     ssim = StructuralSimilarityIndexMeasure().to("cuda")
 
@@ -822,11 +816,8 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
         vif.update(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
 
         lpips_score = lpips(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
-        ppl_score = ppl(resize(generated_image_tensor).to(torch.float32))
-        mifid_score = mifid(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
         scc_score = scc(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
         sdi_score = sdi(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
-        spdi_score = spdi(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
         sam_score = sam(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
         ssim_score = ssim(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
 
@@ -846,11 +837,8 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
         "VIF": vif_score.item(),
         "CLIP Score": clip_score_avg,
         "LPIPS": lpips_score.item(),
-        "PPL": ppl_score.item(),
-        "MIFID": mifid_score.item(),
         "SCC": scc_score.item(),
         "SDI": sdi_score.item(),
-        "SPDI": spdi_score.item(),
         "SAM": sam_score.item(),
         "SSIM": ssim_score.item()
     }

@@ -9,13 +9,13 @@ A simple and convenient interface for using of various neural network models. Yo
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/cde11dfe-d512-4467-bd5d-e30c321d065a)
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/15937ce5-a7b8-44e9-b4d6-322dceec3e2d)
 
 ### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/efc2b8b3-efea-4f4e-9893-5fbc2d29d6db)
 
-### ModelDownloader: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/42a4fbf6-f57f-45c9-a0f9-4de53f856ae5)
+### ModelDownloader: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/d8a3d599-9a71-4818-9352-0ee4240ac66e)
 
-### Settings: ![4](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/8bd096fe-b7f8-4e2f-b6f7-9e120e09b6a0)
+### Settings: ![4](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/889be1a2-69b1-4546-a928-5c86da700118)
 
 ### System: ![5](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/30dd30d6-0411-4add-bada-56fd2802d69a)
 
@@ -168,7 +168,7 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 1) All finetunes are saved in the *finetuned-models* folder
 2) You can press the `Clear` button to reset your selection
 3) You can turn off the application using the `Close terminal` button
-4) You can open the *finetuned-models* folder by clicking on the `Folder` button
+4) You can open the *finetuned-models*, *datasets*, and *outputs* folders by clicking on the folder name button
 
 ## Where can i get models and datasets?
 

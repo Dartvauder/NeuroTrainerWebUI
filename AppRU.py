@@ -11,9 +11,9 @@ import numpy as np
 from PIL import Image
 import torch
 from bert_score import score
-import evaluate
 import json
 from datetime import datetime
+from torchmetrics.text.chrf import CHRFScore
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.kid import KernelInceptionDistance
 from torchmetrics.image.inception import InceptionScore
@@ -33,7 +33,6 @@ import GPUtil
 from cpuinfo import get_cpu_info
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
 import sacrebleu
-from sacrebleu import corpus_chrf
 from rouge import Rouge
 import subprocess
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
@@ -334,13 +333,13 @@ def plot_llm_evaluation_metrics(metrics):
     if metrics is None:
         return None
 
-    metrics_to_plot = ['bleu', 'bert', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision', 'perplexity', 'squad', 'chrf']
+    metrics_to_plot = ['bleu', 'bert', 'rouge-1', 'rouge-2', 'rouge-l', 'mauve', 'accuracy', 'precision', 'chrf']
     metric_values = [metrics.get(metric, 0) for metric in metrics_to_plot]
 
     fig, ax = plt.subplots(figsize=(8, 6))
     bar_width = 0.6
     x = range(len(metrics_to_plot))
-    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf', '#aec7e8'])
+    bars = ax.bar(x, metric_values, width=bar_width, align='center', color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#aec7e8'])
 
     ax.set_xticks(x)
     ax.set_xticklabels(metrics_to_plot, rotation=45, ha='right')
@@ -439,12 +438,10 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
         accuracy = accuracy_score(binary_references, binary_predictions)
         precision = precision_score(binary_references, binary_predictions)
 
-        perplexity = evaluate.load("perplexity")
-        squad = evaluate.load("squad")
-
-        perplexity_score = perplexity.compute(predictions=predictions, model_id=model_name)["perplexity"]
-        squad_score = squad.compute(predictions=predictions, references=references)["f1"]
-        chrf_score = corpus_chrf(predictions, references)
+        chrf_metric = CHRFScore()
+        for reference, prediction in zip(references, predictions):
+            chrf_metric.update(prediction, reference)
+        chrf_score = chrf_metric.compute().item()
 
         extracted_metrics = {
             'bleu': bleu_score,
@@ -455,9 +452,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
             'mauve': mauve_score,
             'accuracy': accuracy,
             'precision': precision,
-            'perplexity': perplexity_score,
-            'squad': squad_score,
-            'chrf': chrf_score.score
+            'chrf': chrf_score
         }
 
         fig = plot_llm_evaluation_metrics(extracted_metrics)
@@ -978,6 +973,24 @@ def open_finetuned_folder():
             os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
 
 
+def open_datasets_folder():
+    outputs_folder = "datasets"
+    if os.path.exists(outputs_folder):
+        if os.name == "nt":
+            os.startfile(outputs_folder)
+        else:
+            os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
+
+
+def open_outputs_folder():
+    outputs_folder = "outputs"
+    if os.path.exists(outputs_folder):
+        if os.name == "nt":
+            os.startfile(outputs_folder)
+        else:
+            os.system(f'open "{outputs_folder}"' if os.name == "darwin" else f'xdg-open "{outputs_folder}"')
+
+
 def download_model(model_name_llm, model_name_sd):
     if not model_name_llm and not model_name_sd:
         return "Please select a model to download"
@@ -1275,8 +1288,14 @@ with gr.TabbedInterface([gr.TabbedInterface([llm_dataset_interface, llm_finetune
     close_button = gr.Button("Close terminal")
     close_button.click(close_terminal, [], [], queue=False)
 
-    folder_button = gr.Button("Folder")
+    folder_button = gr.Button("Finetuned-models")
     folder_button.click(open_finetuned_folder, [], [], queue=False)
+
+    folder_button = gr.Button("Datasets")
+    folder_button.click(open_datasets_folder, [], [], queue=False)
+
+    folder_button = gr.Button("Outputs")
+    folder_button.click(open_outputs_folder, [], [], queue=False)
 
     github_link = gr.HTML(
         '<div style="text-align: center; margin-top: 20px;">'

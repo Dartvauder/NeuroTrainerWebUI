@@ -1043,7 +1043,7 @@ llm_dataset_interface = gr.Interface(
         gr.Textbox(label="Status", type="text"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Dataset",
-    description="Create a new dataset file or add a new column to an existing dataset",
+    description="Create a new dataset or add a new column to an existing dataset for LLM",
     allow_flagging="never",
 )
 
@@ -1091,7 +1091,7 @@ llm_evaluate_interface = gr.Interface(
         gr.Plot(label="Evaluation Metrics"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Evaluate",
-    description="Evaluate LLM models on a custom dataset",
+    description="Evaluate finetuned LLM models on a custom dataset",
     allow_flagging="never",
 )
 
@@ -1112,7 +1112,7 @@ llm_generate_interface = gr.Interface(
         gr.Textbox(label="Message", type="text"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - LLM-Generate",
-    description="Generate text using LLM models",
+    description="Generate text using finetuned LLM models",
     allow_flagging="never",
 )
 
@@ -1129,7 +1129,7 @@ sd_dataset_interface = gr.Interface(
         gr.Textbox(label="Status")
     ],
     title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Dataset",
-    description="Create a dataset for Stable Diffusion",
+    description="Create a new dataset or add a new column to an existing dataset for Stable Diffusion",
     allow_flagging="never",
 )
 
@@ -1177,7 +1177,7 @@ sd_evaluate_interface = gr.Interface(
         gr.Plot(label="Evaluation Metrics"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - StabledDiffusion-Evaluate",
-    description="Evaluate finetuned Stable Diffusion models",
+    description="Evaluate finetuned Stable Diffusion models on a custom dataset",
     allow_flagging="never",
 )
 
@@ -1193,7 +1193,7 @@ sd_convert_interface = gr.Interface(
         gr.Textbox(label="Conversion Status", type="text"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Conversion",
-    description="Convert Stable Diffusion models to single file",
+    description="Convert finetuned Stable Diffusion models to single file (.ckpt or .safetensors)",
     allow_flagging="never",
 )
 
@@ -1217,7 +1217,7 @@ sd_generate_interface = gr.Interface(
         gr.Textbox(label="Message", type="text"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - StableDiffusion-Generate",
-    description="Generate images using fine-tuned Stable Diffusion models",
+    description="Generate images using finetuned Stable Diffusion models",
     allow_flagging="never",
 )
 
@@ -1231,7 +1231,7 @@ model_downloader_interface = gr.Interface(
         gr.Textbox(label="Message", type="text"),
     ],
     title="NeuroTrainerWebUI (ALPHA) - ModelDownloader",
-    description="This user interface allows you to download LLM and StableDiffusion models",
+    description="This interface allows you to download LLM and StableDiffusion models",
     allow_flagging="never",
 )
 
@@ -1244,7 +1244,7 @@ settings_interface = gr.Interface(
         gr.Textbox(label="Message", type="text")
     ],
     title="NeuroTrainerWebUI (ALPHA) - Settings",
-    description="This user interface allows you to change settings of application",
+    description="This interface allows you to change settings of application",
     allow_flagging="never",
 )
 

@@ -66,7 +66,6 @@ To work with the virtual environment through the terminal, run `Venv.bat`
 3) After installation, run `./Start.sh`
 4) Wait for the application to launch
 5) Now you can start experiment with your models!
-!
 
 To get update, run `./Update.sh`
 To work with the virtual environment through the terminal, run `./Venv.sh`

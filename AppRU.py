@@ -625,6 +625,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--seed=0"
             ]
         elif model_type == "SDXL":
+            dataset = load_dataset("imagefolder", data_dir=dataset_path)
             args = [
                 "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora_sdxl.py",
                 f"--pretrained_model_name_or_path={model_path}",
@@ -656,8 +657,8 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
         event_acc = EventAccumulator(event_file_path)
         event_acc.Reload()
 
-        loss_values = [s.value for s in event_acc.Scalars("loss")]
-        steps = [s.step for s in event_acc.Scalars("loss")]
+        loss_values = [s.value for s in event_acc.Scalars("train_loss")]
+        steps = [s.step for s in event_acc.Scalars("train_loss")]
 
         fig, ax = plt.subplots(figsize=(8, 6))
         ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
@@ -682,8 +683,8 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
         event_acc = EventAccumulator(event_file_path)
         event_acc.Reload()
 
-        loss_values = [s.value for s in event_acc.Scalars("loss")]
-        steps = [s.step for s in event_acc.Scalars("loss")]
+        loss_values = [s.value for s in event_acc.Scalars("train_loss")]
+        steps = [s.step for s in event_acc.Scalars("train_loss")]
 
         fig, ax = plt.subplots(figsize=(8, 6))
         ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
@@ -845,7 +846,10 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
 
     fig = plot_sd_evaluation_metrics(metrics)
 
-    plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
+    if model_method == "Diffusers":
+        plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
+    elif model_method == "Safetensors":
+        plot_path = os.path.join("finetuned-models/sd/full", f"{model_name}_evaluation_plot.png")
     fig.savefig(plot_path)
 
     return f"Evaluation completed successfully. Results saved to {plot_path}", fig

@@ -9,7 +9,7 @@ A simple and convenient interface for using of various neural network models. Yo
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/15937ce5-a7b8-44e9-b4d6-322dceec3e2d)
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/7084263e-5cf1-47bf-a4b6-8950249e63c8)
 
 ### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/efc2b8b3-efea-4f4e-9893-5fbc2d29d6db)
 

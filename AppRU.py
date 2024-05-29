@@ -463,6 +463,34 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
         return f"Evaluation failed. Error: {e}", None
 
 
+def quantize_llm(model_name, quantization_type):
+    if not model_name:
+        return "Please select the model"
+
+    model_path = os.path.join("finetuned-models/llm/full", model_name)
+    llama_cpp_path = "trainer-scripts/llm/llama.cpp"
+
+    try:
+        os.chdir(llama_cpp_path)
+
+        subprocess.run(f"cmake -B build", shell=True, check=True)
+        subprocess.run(f"cmake --build build --config Release", shell=True, check=True)
+
+        subprocess.run(f"python convert.py {model_path}", shell=True, check=True)
+
+        input_model = os.path.join(model_path, "ggml-model-f16.ggml")
+        output_model = os.path.join(model_path, f"ggml-model-{quantization_type}.ggml")
+        subprocess.run(f"./quantize {input_model} {output_model} {quantization_type}", shell=True, check=True)
+
+        return f"Quantization completed successfully. Model saved at: {output_model}"
+
+    except subprocess.CalledProcessError as e:
+        return f"Error during quantization: {e}"
+    finally:
+        # Change back to the original directory
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+
 def generate_text(model_name, lora_model_name, prompt, max_length, temperature, top_p, top_k, output_format):
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
@@ -1100,6 +1128,20 @@ llm_evaluate_interface = gr.Interface(
     allow_flagging="never",
 )
 
+llm_quantize_interface = gr.Interface(
+    fn=quantize_llm,
+    inputs=[
+        gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
+        gr.Radio(choices=["Q2_K_M", "Q4_K_M", "Q6_K_M", "Q8_K_M"], value="Q4_K_M", label="Quantization Type"),
+    ],
+    outputs=[
+        gr.Textbox(label="Quantization Status", type="text"),
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - LLM-Quantize",
+    description="Quantize finetuned LLM models to .gguf format using llama.cpp",
+    allow_flagging="never",
+)
+
 llm_generate_interface = gr.Interface(
     fn=generate_text,
     inputs=[
@@ -1271,8 +1313,8 @@ system_interface = gr.Interface(
     allow_flagging="never",
 )
 
-with gr.TabbedInterface([gr.TabbedInterface([llm_dataset_interface, llm_finetune_interface, llm_evaluate_interface, llm_generate_interface],
-                                            tab_names=["Dataset", "Finetune", "Evaluate", "Generate"]),
+with gr.TabbedInterface([gr.TabbedInterface([llm_dataset_interface, llm_finetune_interface, llm_evaluate_interface, llm_quantize_interface, llm_generate_interface],
+                                            tab_names=["Dataset", "Finetune", "Evaluate", "Quantize", "Generate"]),
                          gr.TabbedInterface([sd_dataset_interface, sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
                                             tab_names=["Dataset", "Finetune", "Evaluate", "Conversion", "Generate"]),
                          model_downloader_interface, settings_interface, system_interface],

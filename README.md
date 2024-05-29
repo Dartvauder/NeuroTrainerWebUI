@@ -37,6 +37,10 @@ The goal of the project - to create the easiest possible application to finetune
 * [Python](https://www.python.org/downloads/) (3.10+)
 * [Git](https://git-scm.com/downloads)
 * [CUDA](https://developer.nvidia.com/cuda-downloads) (12.X) and [cuDNN](https://developer.nvidia.com/cudnn-downloads) (9.X)
+* [Cmake](https://cmake.org/download/)
+- C+ compiler
+  - Windows: [VisualStudio](https://visualstudio.microsoft.com/ru/)
+  - Linux: [GCC](https://gcc.gnu.org/)
 
 ## Minimum System Requirements:
 

@@ -3,6 +3,7 @@ from git import Repo
 import requests
 import gradio as gr
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
+from llama_cpp import Llama
 from peft import LoraConfig, get_peft_model, PeftModel
 from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline, DDPMScheduler
 from datasets import load_dataset
@@ -463,65 +464,130 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
         return f"Evaluation failed. Error: {e}", None
 
 
-def generate_text(model_name, lora_model_name, prompt, max_length, temperature, top_p, top_k, output_format):
-    model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
-    if model is None or tokenizer is None:
-        return None, "Error loading model and tokenizer. Please check the model path."
-
+def quantize_llm(model_name, quantization_type):
     if not model_name:
-        return None, "Please select the model"
+        return "Please select the model"
 
-    if lora_model_name and not model_name:
-        return None, "Please select the original model"
+    model_path = os.path.join("finetuned-models/llm/full", model_name)
+    llama_cpp_path = "trainer-scripts/llm/llama.cpp"
 
-    if lora_model_name:
-        lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
-        model = PeftModel.from_pretrained(model, lora_model_path)
+    os.makedirs(os.path.dirname(llama_cpp_path), exist_ok=True)
+
+    if not os.path.exists(llama_cpp_path):
+        llama_cpp_repo_url = "https://github.com/ggerganov/llama.cpp.git"
+        Repo.clone_from(llama_cpp_repo_url, llama_cpp_path)
 
     try:
-        input_ids = tokenizer.encode(prompt, return_tensors='pt')
-        attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
-        pad_token_id = tokenizer.eos_token_id
+        os.chdir(llama_cpp_path)
 
-        input_ids = input_ids.to(model.device)
-        attention_mask = attention_mask.to(model.device)
+        subprocess.run(f"cmake -B build", shell=True, check=True)
+        subprocess.run(f"cmake --build build --config Release", shell=True, check=True)
 
-        output = model.generate(
-            input_ids,
-            do_sample=True,
-            attention_mask=attention_mask,
-            pad_token_id=pad_token_id,
-            max_new_tokens=max_length,
-            num_return_sequences=1,
-            top_p=top_p,
-            top_k=top_k,
-            temperature=temperature,
-            repetition_penalty=1.1,
-            num_beams=5,
-            no_repeat_ngram_size=2,
-        )
+        subprocess.run(f"python convert.py {model_path}", shell=True, check=True)
 
-        generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+        input_model = os.path.join(model_path, "ggml-model-f16.ggml")
+        output_model = os.path.join(model_path, f"ggml-model-{quantization_type}.ggml")
+        subprocess.run(f"./quantize {input_model} {output_model} {quantization_type}", shell=True, check=True)
 
-        output_dir = "outputs/llm"
-        os.makedirs(output_dir, exist_ok=True)
+        return f"Quantization completed successfully. Model saved at: {output_model}"
 
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        output_file = f"llm_history_{timestamp}.{output_format}"
-        output_path = os.path.join(output_dir, output_file)
+    except subprocess.CalledProcessError as e:
+        return f"Error during quantization: {e}"
+    finally:
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-        if output_format == "txt":
-            with open(output_path, "a", encoding="utf-8") as file:
-                file.write(f"Human: {prompt}\nAI: {generated_text}\n")
-        elif output_format == "json":
-            history = [{"Human": prompt, "AI": generated_text}]
-            with open(output_path, "w", encoding="utf-8") as file:
-                json.dump(history, file, indent=2, ensure_ascii=False)
 
-        return generated_text, "Text generation successful"
-    except Exception as e:
-        print(f"Error during text generation: {e}")
-        return None, f"Text generation failed. Error: {e}"
+def generate_text(model_name, lora_model_name, model_type, prompt, max_length, temperature, top_p, top_k, output_format):
+    if model_type == "transformers":
+        model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
+        if model is None or tokenizer is None:
+            return None, "Error loading model and tokenizer. Please check the model path."
+
+        if not model_name:
+            return None, "Please select the model"
+
+        if lora_model_name and not model_name:
+            return None, "Please select the original model"
+
+        if lora_model_name:
+            lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
+            model = PeftModel.from_pretrained(model, lora_model_path)
+
+        try:
+            input_ids = tokenizer.encode(prompt, return_tensors='pt')
+            attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
+            pad_token_id = tokenizer.eos_token_id
+
+            input_ids = input_ids.to(model.device)
+            attention_mask = attention_mask.to(model.device)
+
+            output = model.generate(
+                input_ids,
+                do_sample=True,
+                attention_mask=attention_mask,
+                pad_token_id=pad_token_id,
+                max_new_tokens=max_length,
+                num_return_sequences=1,
+                top_p=top_p,
+                top_k=top_k,
+                temperature=temperature,
+                repetition_penalty=1.1,
+                num_beams=5,
+                no_repeat_ngram_size=2,
+            )
+
+            generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+
+            output_dir = "outputs/llm"
+            os.makedirs(output_dir, exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            output_file = f"llm_history_{timestamp}.{output_format}"
+            output_path = os.path.join(output_dir, output_file)
+
+            if output_format == "txt":
+                with open(output_path, "a", encoding="utf-8") as file:
+                    file.write(f"Human: {prompt}\nAI: {generated_text}\n")
+            elif output_format == "json":
+                history = [{"Human": prompt, "AI": generated_text}]
+                with open(output_path, "w", encoding="utf-8") as file:
+                    json.dump(history, file, indent=2, ensure_ascii=False)
+
+            return generated_text, "Text generation successful"
+        except Exception as e:
+            print(f"Error during text generation: {e}")
+            return None, f"Text generation failed. Error: {e}"
+
+    elif model_type == "llama.cpp":
+        model_path = os.path.join("finetuned-models/llm/full", model_name)
+
+        try:
+
+            llm = Llama(model_path=model_path, n_ctx=max_length, n_parts=-1, seed=-1, f16_kv=True, logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1, suffix=None)
+
+            output = llm(prompt, max_tokens=max_length, top_k=top_k, top_p=top_p, temperature=temperature, stop=None, echo=False)
+
+            generated_text = output['choices'][0]['text']
+
+            output_dir = "outputs/llm"
+            os.makedirs(output_dir, exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            output_file = f"llm_history_{timestamp}.{output_format}"
+            output_path = os.path.join(output_dir, output_file)
+
+            if output_format == "txt":
+                with open(output_path, "a", encoding="utf-8") as file:
+                    file.write(f"Human: {prompt}\nAI: {generated_text}\n")
+            elif output_format == "json":
+                history = [{"Human": prompt, "AI": generated_text}]
+                with open(output_path, "w", encoding="utf-8") as file:
+                    json.dump(history, file, indent=2, ensure_ascii=False)
+
+            return generated_text, "Text generation successful"
+        except Exception as e:
+            print(f"Error during text generation: {e}")
+            return None, f"Text generation failed. Error: {e}"
 
 
 def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, prompt_text):
@@ -857,7 +923,7 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
 
 def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safetensors):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
-    output_path = os.path.join(model_path)
+    output_path = os.path.join("finetuned-models/sd/full")
 
     if model_type == "SD":
         try:
@@ -1100,11 +1166,26 @@ llm_evaluate_interface = gr.Interface(
     allow_flagging="never",
 )
 
+llm_quantize_interface = gr.Interface(
+    fn=quantize_llm,
+    inputs=[
+        gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
+        gr.Radio(choices=["Q2_K_M", "Q4_K_M", "Q6_K_M", "Q8_K_M"], value="Q4_K_M", label="Quantization Type"),
+    ],
+    outputs=[
+        gr.Textbox(label="Quantization Status", type="text"),
+    ],
+    title="NeuroTrainerWebUI (ALPHA) - LLM-Quantize",
+    description="Quantize finetuned LLM models to .gguf format using llama.cpp",
+    allow_flagging="never",
+)
+
 llm_generate_interface = gr.Interface(
     fn=generate_text,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_lora_models(), label="LORA Model (optional)"),
+        gr.Radio(choices=["transformers", "llama.cpp"], value="transformers", label="Model Type"),
         gr.Textbox(label="Request", type="text"),
         gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max length"),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label="Temperature"),
@@ -1271,8 +1352,8 @@ system_interface = gr.Interface(
     allow_flagging="never",
 )
 
-with gr.TabbedInterface([gr.TabbedInterface([llm_dataset_interface, llm_finetune_interface, llm_evaluate_interface, llm_generate_interface],
-                                            tab_names=["Dataset", "Finetune", "Evaluate", "Generate"]),
+with gr.TabbedInterface([gr.TabbedInterface([llm_dataset_interface, llm_finetune_interface, llm_evaluate_interface, llm_quantize_interface, llm_generate_interface],
+                                            tab_names=["Dataset", "Finetune", "Evaluate", "Quantize", "Generate"]),
                          gr.TabbedInterface([sd_dataset_interface, sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
                                             tab_names=["Dataset", "Finetune", "Evaluate", "Conversion", "Generate"]),
                          model_downloader_interface, settings_interface, system_interface],

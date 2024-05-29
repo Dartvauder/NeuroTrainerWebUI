@@ -9,7 +9,7 @@ A simple and convenient interface for using of various neural network models. Yo
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/15937ce5-a7b8-44e9-b4d6-322dceec3e2d)
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/7084263e-5cf1-47bf-a4b6-8950249e63c8)
 
 ### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/efc2b8b3-efea-4f4e-9893-5fbc2d29d6db)
 
@@ -24,8 +24,8 @@ The goal of the project - to create the easiest possible application to finetune
 * Easy installation via install.bat(Windows) or install.sh(Linux)
 * Flexible and optimized interface (By Gradio)
 * Authentication via admin:admin (You can enter your login details in the GradioAuth.txt file)
-* Support for Transformers finetune, evaluate and generate (LLM)
-* Support for Diffusers and Safetensors finetune, evaluate, conversion and generate (StableDiffusion)
+* Support for Transformers: finetune, evaluate, quantize and generate (LLM)
+* Support for Diffusers and Safetensors: finetune, evaluate, conversion and generate (StableDiffusion)
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
 * Ability to create a dataset (For LLM and StableDiffusion)
 * ModelDownloader (For LLM and StableDiffusion)
@@ -37,6 +37,10 @@ The goal of the project - to create the easiest possible application to finetune
 * [Python](https://www.python.org/downloads/) (3.10+)
 * [Git](https://git-scm.com/downloads)
 * [CUDA](https://developer.nvidia.com/cuda-downloads) (12.X) and [cuDNN](https://developer.nvidia.com/cudnn-downloads) (9.X)
+* [Cmake](https://cmake.org/download/)
+- C+ compiler
+  - Windows: [VisualStudio](https://visualstudio.microsoft.com/ru/)
+  - Linux: [GCC](https://gcc.gnu.org/)
 
 ## Minimum System Requirements:
 
@@ -74,7 +78,7 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 #### Interface has five tabs: LLM, StableDiffusion, ModelDownloader, Settings and System. Select the one you need and follow the instructions below 
 
-### LLM - has four sub-tabs:
+### LLM - has five sub-tabs:
 
 #### Dataset:
 
@@ -98,6 +102,12 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 3) Select your models and dataset from the drop-down lists
 4) Set up the models parameters for evaluate
 5) Click the `Submit` button to receive the evaluate of model
+
+#### Quantize:
+
+1) First upload your models to the folder: *finetuned-models/llm*
+2) Select a Model and Quantization Type
+3) Click the `Submit` button to receive the conversion of model
 
 #### Generate:
 
@@ -201,6 +211,7 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 * [TrainerScripts](http://www.apache.org/licenses/LICENSE-2.0)
 * [CLIP](https://huggingface.co/openai/clip-vit-base-patch16)
 * [BERT](https://huggingface.co/google-bert/bert-base-uncased)
+* [LLAMA.CPP](https://github.com/ggerganov/llama.cpp/blob/master/LICENSE)
 
 ## Donation
 

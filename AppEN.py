@@ -470,6 +470,12 @@ def quantize_llm(model_name, quantization_type):
     model_path = os.path.join("finetuned-models/llm/full", model_name)
     llama_cpp_path = "trainer-scripts/llm/llama.cpp"
 
+    os.makedirs(os.path.dirname(llama_cpp_path), exist_ok=True)
+
+    if not os.path.exists(llama_cpp_path):
+        llama_cpp_repo_url = "https://github.com/ggerganov/llama.cpp.git"
+        Repo.clone_from(llama_cpp_repo_url, llama_cpp_path)
+
     try:
         os.chdir(llama_cpp_path)
 
@@ -487,7 +493,6 @@ def quantize_llm(model_name, quantization_type):
     except subprocess.CalledProcessError as e:
         return f"Error during quantization: {e}"
     finally:
-        # Change back to the original directory
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -885,7 +890,7 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
 
 def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safetensors):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
-    output_path = os.path.join(model_path)
+    output_path = os.path.join("finetuned-models/sd/full")
 
     if model_type == "SD":
         try:

@@ -209,7 +209,7 @@ def create_llm_dataset(existing_file, file_name, instruction, input_text, output
 
 
 def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, epochs, batch_size, learning_rate,
-                 weight_decay, warmup_steps, block_size, grad_accum_steps, lora_r, lora_alpha, lora_dropout):
+                 weight_decay, warmup_steps, block_size, grad_accum_steps, lora_r, lora_alpha, lora_dropout, freeze_layers):
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path.", None
@@ -246,7 +246,7 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
-    if finetune_method == "Full":
+    if finetune_method == "Full" or "Freeze":
         save_dir = os.path.join("finetuned-models/llm/full", model_output_name)
     elif finetune_method == "LORA":
         save_dir = os.path.join("finetuned-models/llm/lora", model_output_name)
@@ -280,6 +280,13 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
         )
 
         model = get_peft_model(model, config)
+
+    if finetune_method == "Freeze":
+        num_freeze_layers = len(model.transformer.h) - freeze_layers
+        for i, layer in enumerate(model.transformer.h):
+            if i < num_freeze_layers:
+                for param in layer.parameters():
+                    param.requires_grad = False
 
     trainer = Trainer(
         model=model,
@@ -353,7 +360,7 @@ def plot_llm_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_length, temperature, top_p, top_k):
+def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_length, temperature, top_p, top_k, model_type):
     model_path = os.path.join("finetuned-models/llm/full", model_name)
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
@@ -398,7 +405,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
 
     try:
         references = eval_dataset['labels']
-        predictions = [generate_text(model_name, lora_model_name,
+        predictions = [generate_text(model_name, lora_model_name, model_type,
                                      user_input if user_input else tokenizer.decode(example['input_ids'],
                                                                                     skip_special_tokens=True),
                                      max_length, temperature, top_p, top_k, output_format='txt')[0] for example in eval_dataset]
@@ -1123,7 +1130,7 @@ llm_finetune_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_llm_models(), label="Model"),
         gr.Dropdown(choices=get_available_llm_datasets(), label="Dataset"),
-        gr.Radio(choices=["Full", "LORA"], value="Full", label="Finetune Method"),
+        gr.Radio(choices=["Full", "Freeze", "LORA"], value="Full", label="Finetune Method"),
         gr.Textbox(label="Output Model Name", type="text"),
         gr.Number(value=10, label="Epochs"),
         gr.Number(value=4, label="Batch size"),
@@ -1135,6 +1142,7 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=16, label="LORA r"),
         gr.Number(value=32, label="LORA alpha"),
         gr.Number(value=0.05, label="LORA dropout"),
+        gr.Number(value=2, label="Freeze layers (for Freeze method)"),
     ],
     outputs=[
         gr.Textbox(label="Finetuning Status", type="text"),

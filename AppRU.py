@@ -360,7 +360,7 @@ def plot_llm_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_length, temperature, top_p, top_k, model_type):
+def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_length, temperature, top_p, top_k):
     model_path = os.path.join("finetuned-models/llm/full", model_name)
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
@@ -405,7 +405,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
 
     try:
         references = eval_dataset['labels']
-        predictions = [generate_text(model_name, lora_model_name, model_type,
+        predictions = [generate_text(model_name, lora_model_name, "transformers",
                                      user_input if user_input else tokenizer.decode(example['input_ids'],
                                                                                     skip_special_tokens=True),
                                      max_length, temperature, top_p, top_k, output_format='txt')[0] for example in eval_dataset]
@@ -1142,7 +1142,7 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=16, label="LORA r"),
         gr.Number(value=32, label="LORA alpha"),
         gr.Number(value=0.05, label="LORA dropout"),
-        gr.Number(value=2, label="Freeze layers"),
+        gr.Number(value=2, label="Freeze layers (for Freeze method)"),
     ],
     outputs=[
         gr.Textbox(label="Finetuning Status", type="text"),

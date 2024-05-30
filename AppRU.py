@@ -1142,7 +1142,7 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=16, label="LORA r"),
         gr.Number(value=32, label="LORA alpha"),
         gr.Number(value=0.05, label="LORA dropout"),
-        gr.Number(value=2, label="Freeze layers (for Freeze method)"),
+        gr.Number(value=2, label="Freeze layers"),
     ],
     outputs=[
         gr.Textbox(label="Finetuning Status", type="text"),

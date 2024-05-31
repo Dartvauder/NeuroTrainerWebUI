@@ -637,7 +637,7 @@ def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, 
 
 def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_output_name, resolution,
                 train_batch_size, gradient_accumulation_steps,
-                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, adam_beta1, adam_beta2, adam_weight_decay, adam_epsilon, max_grad_norm, noise_offset, rank, enable_xformers=False):
+                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, adam_beta1, adam_beta2, adam_weight_decay, adam_epsilon, max_grad_norm, noise_offset, rank, enable_xformers):
     model_path = os.path.join("models/sd", model_name)
     dataset_path = os.path.join("datasets/sd", dataset_name)
 
@@ -672,11 +672,12 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--adam_epsilon={adam_epsilon}",
                 f"--max_grad_norm={max_grad_norm}",
                 f"--noise_offset={noise_offset}",
-                f"--enable_xformers_memory_efficient_attention={enable_xformers}",
                 f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
         elif model_type == "SDXL":
             dataset = load_dataset("imagefolder", data_dir=dataset_path)
             args = [
@@ -697,11 +698,12 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--adam_epsilon={adam_epsilon}",
                 f"--max_grad_norm={max_grad_norm}",
                 f"--noise_offset={noise_offset}",
-                f"--enable_xformers_memory_efficient_attention={enable_xformers}",
                 f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
     elif finetune_method == "LORA":
         output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
         if model_type == "SD":
@@ -725,11 +727,12 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--max_grad_norm={max_grad_norm}",
                 f"--noise_offset={noise_offset}",
                 f"--rank={rank}",
-                f"--enable_xformers_memory_efficient_attention={enable_xformers}",
                 f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
         elif model_type == "SDXL":
             dataset = load_dataset("imagefolder", data_dir=dataset_path)
             args = [
@@ -751,11 +754,12 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--max_grad_norm={max_grad_norm}",
                 f"--noise_offset={noise_offset}",
                 f"--rank={rank}",
-                f"--enable_xformers_memory_efficient_attention={enable_xformers}",
                 f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
     else:
         raise ValueError(f"Invalid finetune method: {finetune_method}")
 

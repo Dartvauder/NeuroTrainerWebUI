@@ -209,7 +209,7 @@ def create_llm_dataset(existing_file, file_name, instruction, input_text, output
 
 
 def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, epochs, batch_size, learning_rate,
-                 weight_decay, warmup_steps, block_size, grad_accum_steps, lora_r, lora_alpha, lora_dropout, freeze_layers):
+                 weight_decay, warmup_steps, block_size, grad_accum_steps, adam_beta1, adam_beta2, adam_epsilon, lr_scheduler_type, freeze_layers, lora_r, lora_alpha, lora_dropout, use_xformers=False):
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path.", None
@@ -267,7 +267,19 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
         save_steps=10_000,
         save_total_limit=2,
         logging_strategy='epoch',
+        adam_beta1=adam_beta1,
+        adam_beta2=adam_beta2,
+        adam_epsilon=adam_epsilon,
+        lr_scheduler_type=lr_scheduler_type
     )
+
+    if use_xformers:
+        try:
+            import xformers
+            import xformers.ops
+            model.enable_xformers_memory_efficient_attention()
+        except ImportError:
+            print("xformers not installed. Proceeding without memory-efficient attention.")
 
     if finetune_method == "LORA":
         config = LoraConfig(
@@ -625,7 +637,7 @@ def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, 
 
 def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_output_name, resolution,
                 train_batch_size, gradient_accumulation_steps,
-                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, rank):
+                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, adam_beta1, adam_beta2, adam_weight_decay, adam_epsilon, max_grad_norm, noise_offset, rank, enable_xformers):
     model_path = os.path.join("models/sd", model_name)
     dataset_path = os.path.join("datasets/sd", dataset_name)
 
@@ -654,10 +666,18 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--lr_scheduler={lr_scheduler}",
                 f"--lr_warmup_steps={lr_warmup_steps}",
                 f"--max_train_steps={max_train_steps}",
+                f"--adam_beta1={adam_beta1}",
+                f"--adam_beta2={adam_beta2}",
+                f"--adam_weight_decay={adam_weight_decay}",
+                f"--adam_epsilon={adam_epsilon}",
+                f"--max_grad_norm={max_grad_norm}",
+                f"--noise_offset={noise_offset}",
                 f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
         elif model_type == "SDXL":
             dataset = load_dataset("imagefolder", data_dir=dataset_path)
             args = [
@@ -672,10 +692,18 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--lr_scheduler={lr_scheduler}",
                 f"--lr_warmup_steps={lr_warmup_steps}",
                 f"--max_train_steps={max_train_steps}",
+                f"--adam_beta1={adam_beta1}",
+                f"--adam_beta2={adam_beta2}",
+                f"--adam_weight_decay={adam_weight_decay}",
+                f"--adam_epsilon={adam_epsilon}",
+                f"--max_grad_norm={max_grad_norm}",
+                f"--noise_offset={noise_offset}",
                 f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
     elif finetune_method == "LORA":
         output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
         if model_type == "SD":
@@ -692,11 +720,19 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--lr_scheduler={lr_scheduler}",
                 f"--lr_warmup_steps={lr_warmup_steps}",
                 f"--max_train_steps={max_train_steps}",
+                f"--adam_beta1={adam_beta1}",
+                f"--adam_beta2={adam_beta2}",
+                f"--adam_weight_decay={adam_weight_decay}",
+                f"--adam_epsilon={adam_epsilon}",
+                f"--max_grad_norm={max_grad_norm}",
+                f"--noise_offset={noise_offset}",
                 f"--rank={rank}",
                 f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
         elif model_type == "SDXL":
             dataset = load_dataset("imagefolder", data_dir=dataset_path)
             args = [
@@ -711,11 +747,19 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 f"--lr_scheduler={lr_scheduler}",
                 f"--lr_warmup_steps={lr_warmup_steps}",
                 f"--max_train_steps={max_train_steps}",
+                f"--adam_beta1={adam_beta1}",
+                f"--adam_beta2={adam_beta2}",
+                f"--adam_weight_decay={adam_weight_decay}",
+                f"--adam_epsilon={adam_epsilon}",
+                f"--max_grad_norm={max_grad_norm}",
+                f"--noise_offset={noise_offset}",
                 f"--rank={rank}",
                 f"--caption_column=text",
                 f"--mixed_precision=no",
                 f"--seed=0"
             ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
     else:
         raise ValueError(f"Invalid finetune method: {finetune_method}")
 
@@ -1139,10 +1183,15 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=100, label="Warmup steps"),
         gr.Number(value=128, label="Block size"),
         gr.Number(value=1, label="Gradient accumulation steps"),
+        gr.Number(value=0.9, label="Adam beta 1"),
+        gr.Number(value=0.999, label="Adam beta 2"),
+        gr.Number(value=1e-8, label="Adam epsilon"),
+        gr.Dropdown(choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"], value="linear", label="LR Scheduler"),
+        gr.Number(value=2, label="Freeze layers"),
         gr.Number(value=16, label="LORA r"),
         gr.Number(value=32, label="LORA alpha"),
         gr.Number(value=0.05, label="LORA dropout"),
-        gr.Number(value=2, label="Freeze layers"),
+        gr.Checkbox(label="Use xformers", value=False),
     ],
     outputs=[
         gr.Textbox(label="Finetuning Status", type="text"),
@@ -1239,10 +1288,17 @@ sd_finetune_interface = gr.Interface(
         gr.Number(value=1, label="Train Batch Size"),
         gr.Number(value=1, label="Gradient Accumulation Steps"),
         gr.Number(value=5e-6, label="Learning Rate"),
-        gr.Textbox(value="constant", label="LR Scheduler"),
+        gr.Dropdown(choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"], value="linear", label="LR Scheduler"),
         gr.Number(value=0, label="LR Warmup Steps"),
-        gr.Number(value=400, label="Max Train Steps"),
+        gr.Number(value=100, label="Max Train Steps"),
+        gr.Number(value=0.9, label="Adam beta 1"),
+        gr.Number(value=0.999, label="Adam beta 2"),
+        gr.Number(value=1e-2, label="Adam weight decay"),
+        gr.Number(value=1e-8, label="Adam epsilon"),
+        gr.Number(value=1.0, label="Max grad norm"),
+        gr.Number(value=0, label="Noise offset"),
         gr.Number(value=4, label="LORA Rank"),
+        gr.Checkbox(label="Use xformers", value=False),
     ],
     outputs=[
         gr.Textbox(label="Finetuning Status", type="text"),

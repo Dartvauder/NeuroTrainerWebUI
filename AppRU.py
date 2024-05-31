@@ -637,7 +637,7 @@ def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, 
 
 def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_output_name, resolution,
                 train_batch_size, gradient_accumulation_steps,
-                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, adam_beta1, adam_beta2, adam_weight_decay, adam_epsilon, max_grad_norm, noise_offset, rank, enable_xformers):
+                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, adam_beta1, adam_beta2, adam_weight_decay, adam_epsilon, max_grad_norm, noise_offset, rank, enable_xformers=False):
     model_path = os.path.join("models/sd", model_name)
     dataset_path = os.path.join("datasets/sd", dataset_name)
 

@@ -1,5 +1,5 @@
 absl-py==2.1.0
-accelerate==0.30.1
+accelerate==0.31.0
 aiofiles==23.2.1
 aiohttp==3.9.5
 aiosignal==1.3.1
@@ -11,12 +11,12 @@ bert-score==0.3.13
 certifi==2024.2.2
 charset-normalizer==3.3.2
 click==8.1.7
-cmake==3.29.3
+cmake==3.29.5.1
 colorama==0.4.6
 contourpy==1.2.1
 cycler==0.12.1
-datasets==2.19.1
-diffusers==0.27.2
+datasets==2.20.0
+diffusers==0.29.0
 dill==0.3.8
 dnspython==2.6.1
 email_validator==2.1.1
@@ -35,14 +35,14 @@ git-python==1.0.3
 gitdb==4.0.11
 GitPython==3.1.43
 GPUtil==1.4.0
-gradio==4.31.4
-gradio_client==0.16.4
+gradio==4.36.1
+gradio_client==1.0.1
 grpcio==1.63.0
 h11==0.14.0
 httpcore==1.0.5
 httptools==0.6.1
 httpx==0.27.0
-huggingface-hub==0.23.0
+huggingface-hub==0.23.4
 idna==3.7
 importlib_metadata==7.1.0
 importlib_resources==6.4.0
@@ -67,7 +67,7 @@ multiprocess==0.70.16
 networkx==3.2.1
 numpy==1.26.4
 orjson==3.10.3
-packaging==24.0
+packaging==24.1
 pandas==2.2.2
 peft==0.11.1
 pillow==10.3.0
@@ -91,7 +91,7 @@ pywin32==306
 PyYAML==6.0.1
 referencing==0.35.1
 regex==2024.5.15
-requests==2.31.0
+requests==2.32.3
 rich==13.7.1
 rouge==1.0.1
 rpds-py==0.18.1
@@ -119,7 +119,7 @@ toolz==0.12.1
 torch-fidelity==0.3.0
 torchmetrics==1.4.0.post0
 tqdm==4.66.4
-transformers==4.41.0
+transformers==4.41.2
 typer==0.12.3
 typing_extensions==4.11.0
 tzdata==2024.1

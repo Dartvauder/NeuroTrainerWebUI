@@ -1,5 +1,6 @@
 ## [Features](/#Features) | [Dependencies](/#Required-Dependencies) | [SystemRequirements](/#Minimum-System-Requirements) | [Install](/#How-to-install) | [Usage](/#How-to-use) | [Models](/#Where-can-I-get-models) | [Wiki](/#Wiki) | [Acknowledgment](/#Acknowledgment-to-developers) | [Licenses](/#Third-Party-Licenses)
 
+# ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/05329b36-ab08-4317-8d2e-43b326daa034)
 * Work in progress! (ALPHA)
 * English | [Русский](/README_RU.md)
 

@@ -6,19 +6,21 @@
 
 ## Description:
 
-A simple and convenient interface for using of various neural network models. You can create datasets, finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also download the LLM and StableDiffusion models, change the application settings inside the interface and check system sensors
+A simple and convenient interface for using of various neural network models. You can create datasets, finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also view files from the outputs directory in gallery, download the LLM and StableDiffusion models, change the application settings inside the interface and check system sensors
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/7084263e-5cf1-47bf-a4b6-8950249e63c8)
+### LLM: ![1](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/a1de823d-1818-4212-a821-e9b92367ffeb)
 
-### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/efc2b8b3-efea-4f4e-9893-5fbc2d29d6db)
+### StableDiffusion: ![2](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/ed61b74c-4a2e-4f0c-ba0b-a41d600ca737)
 
-### ModelDownloader: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/d8a3d599-9a71-4818-9352-0ee4240ac66e)
+### Gallery: ![3](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/2bf3c8ec-ed37-4053-9cbe-4fef98a91a34)
 
-### Settings: ![4](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/889be1a2-69b1-4546-a928-5c86da700118)
+### ModelDownloader: ![4](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/ae2f94e0-eeb4-45b5-9450-376434a52513)
 
-### System: ![5](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/30dd30d6-0411-4add-bada-56fd2802d69a)
+### Settings: ![5](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/4c453be7-9839-41a6-9154-10447036c435)
+
+### System: ![6](https://github.com/Dartvauder/NeuroTrainerWebUI/assets/140557322/55e01cba-dab6-4654-8d3f-2cccef4dd040)
 
 ## Features:
 
@@ -29,6 +31,7 @@ The goal of the project - to create the easiest possible application to finetune
 * Support for Diffusers and Safetensors: finetune, evaluate, conversion and generate (StableDiffusion)
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
 * Ability to create a dataset (For LLM and StableDiffusion)
+* Gallery
 * ModelDownloader (For LLM and StableDiffusion)
 * Application settings
 * Ability to see system sensors
@@ -77,7 +80,7 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 
 ## How to use:
 
-#### Interface has five tabs: LLM, StableDiffusion, ModelDownloader, Settings and System. Select the one you need and follow the instructions below 
+#### Interface has six tabs: LLM, StableDiffusion, Gallery, ModelDownloader, Settings and System. Select the one you need and follow the instructions below 
 
 ### LLM - has five sub-tabs:
 
@@ -159,6 +162,10 @@ To work with the virtual environment through the terminal, run `./Venv.sh`
 5) Enter your prompt
 6) Set up the models parameters to generate
 7) Click the `Submit` button to receive the generated image
+
+### Gallery:
+
+* Here you can view files from the outputs directory
 
 ### ModelDownloader:
 

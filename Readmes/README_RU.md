@@ -13,11 +13,11 @@
 
 Цель проекта - создать максимально простое приложение для дообучения, оценки и генерации моделей нейронных сетей.
 
-### LLM: 
+### LLM: <img width="1119" alt="1ru" src="https://github.com/user-attachments/assets/cabed41d-826b-43f9-80f5-2a67c4c9f2fd">
 
-### StableDiffusion: 
+### StableDiffusion: <img width="1118" alt="2ru" src="https://github.com/user-attachments/assets/1f8084ee-e4ed-4484-b502-5fe35058091b">
 
-### Интерфейс: 
+### Интерфейс: <img width="1117" alt="3ru" src="https://github.com/user-attachments/assets/42429ba1-9d54-4282-b3fe-44028440cf05">
 
 ## Функции:
 

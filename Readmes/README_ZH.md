@@ -5,7 +5,7 @@
 ![project-image](https://github.com/user-attachments/assets/2a47ff0d-9131-4c3b-897b-46f7cb9e4ae2)
 
 * 正在进行中！（Alpha版本）
-* 英文
+* [English](/README.md) | [Русский](/Readmes/README_RU.md) | 漢語
 
 ## 描述：
 

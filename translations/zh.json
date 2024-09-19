@@ -141,5 +141,10 @@
   "Finetuned-models": "微调模型",
   "Datasets": "数据集",
   "Outputs": "输出",
-  "Welcome to NeuroTrainerWebUI!": "欢迎使用NeuroTrainerWebUI！"
+  "Welcome to NeuroTrainerWebUI! (ALPHA)": "欢迎使用NeuroTrainerWebUI！（测试版）",
+  "Online Wiki": "在线维基",
+  "Local Wiki": "本地维基",
+  "Wiki Content": "维基内容",
+  "NeuroTrainerWebUI (ALPHA) - Wiki": "NeuroTrainerWebUI（测试版） - 维基",
+  "This interface displays the Wiki content from the specified URL or local file.": "此界面显示来自指定URL或本地文件的维基内容。"
 }

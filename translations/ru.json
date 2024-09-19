@@ -141,5 +141,10 @@
   "Finetuned-models": "Тонко настроенные модели",
   "Datasets": "Наборы данных",
   "Outputs": "Выходные данные",
-  "Welcome to NeuroTrainerWebUI!": "Добро пожаловать в NeuroTrainerWebUI!"
+  "Welcome to NeuroTrainerWebUI! (ALPHA)": "Добро пожаловать в NeuroTrainerWebUI! (АЛЬФА)",
+  "Online Wiki": "Онлайн вики",
+  "Local Wiki": "Локальная вики",
+  "Wiki Content": "Содержание вики",
+  "NeuroTrainerWebUI (ALPHA) - Wiki": "NeuroTrainerWebUI (АЛЬФА) - Вики",
+  "This interface displays the Wiki content from the specified URL or local file.": "Этот интерфейс отображает содержание вики из указанного URL или локального файла."
 }

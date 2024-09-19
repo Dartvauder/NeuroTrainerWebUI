@@ -11,6 +11,7 @@ os.environ["XDG_CACHE_HOME"] = cache_dir
 temp_dir = os.path.join("temp")
 os.makedirs(temp_dir, exist_ok=True)
 os.environ["TMPDIR"] = temp_dir
+import markdown
 import gc
 import platform
 import sys
@@ -257,6 +258,27 @@ def get_available_sd_datasets():
             sd_available_datasets.append(dataset_dir)
 
     return sd_available_datasets
+
+
+def reload_model_lists():
+    llm_models = get_available_llm_models()
+    llm_lora_models = get_available_llm_lora_models()
+    finetuned_llm_models = get_available_finetuned_llm_models()
+    llm_datasets = get_available_llm_datasets()
+    sd_models = get_available_sd_models()
+    sd_lora_models = get_available_sd_lora_models()
+    finetuned_sd_models = get_available_finetuned_sd_models()
+    sd_datasets = get_available_sd_datasets()
+
+    return [
+        llm_models, llm_lora_models, finetuned_llm_models, llm_datasets,
+        sd_models, sd_lora_models, finetuned_sd_models, sd_datasets
+    ]
+
+
+def reload_interface():
+    updated_lists = reload_model_lists()[:8]
+    return [gr.Dropdown(choices=list) for list in updated_lists]
 
 
 def load_model_and_tokenizer(model_name, finetuned=False):
@@ -1309,6 +1331,22 @@ def download_model(model_name_llm, model_name_sd):
             return "Invalid StableDiffusion model name"
 
 
+def get_wiki_content(url, local_file="Wikies/WikiEN.md"):
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.text
+    except:
+        pass
+
+    try:
+        with open(local_file, 'r', encoding='utf-8') as file:
+            content = file.read()
+            return markdown.markdown(content)
+    except:
+        return "<p>Wiki content is not available.</p>"
+
+
 settings = load_settings()
 lang = settings['language']
 
@@ -1532,6 +1570,27 @@ sd_generate_interface = gr.Interface(
     allow_flagging="never",
 )
 
+wiki_interface = gr.Interface(
+    fn=get_wiki_content,
+    inputs=[
+        gr.Textbox(label=_("Online Wiki", lang), value=(
+            "https://github.com/Dartvauder/NeuroTrainerWebUI/wiki/EN‐Wiki" if lang == "EN" else
+            "https://github.com/Dartvauder/NeuroTrainerWebUI/wiki/ZH‐Wiki" if lang == "ZH" else
+            "https://github.com/Dartvauder/NeuroTrainerWebUI/wiki/RU‐Wiki"
+        ), interactive=False),
+        gr.Textbox(label=_("Local Wiki", lang), value=(
+            "Wikies/WikiEN.md" if lang == "EN" else
+            "Wikies/WikiZH.md" if lang == "ZH" else
+            "Wikies/WikiRU.md"
+        ), interactive=False)
+    ],
+    outputs=gr.HTML(label=_("Wiki Content", lang)),
+    title=_("NeuroTrainerWebUI (ALPHA) - Wiki", lang),
+    description=_("This interface displays the Wiki content from the specified URL or local file.", lang),
+    allow_flagging="never",
+    clear_btn=None,
+)
+
 model_downloader_interface = gr.Interface(
     fn=download_model,
     inputs=[
@@ -1624,10 +1683,12 @@ with gr.TabbedInterface([
                        tab_names=[_("Dataset", lang), _("Finetune", lang), _("Evaluate", lang), _("Quantize", lang), _("Generate", lang)]),
     gr.TabbedInterface([sd_dataset_interface, sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
                        tab_names=[_("Dataset", lang), _("Finetune", lang), _("Evaluate", lang), _("Conversion", lang), _("Generate", lang)]),
-    gr.TabbedInterface([model_downloader_interface, settings_interface, system_interface],
-                       tab_names=[_("ModelDownloader", lang), _("Settings", lang), _("System", lang)])
+    gr.TabbedInterface([wiki_interface, model_downloader_interface, settings_interface, system_interface],
+                       tab_names=[_("Wiki", lang), _("ModelDownloader", lang), _("Settings", lang), _("System", lang)])
 ],
     tab_names=[_("LLM", lang), _("StableDiffusion", lang), _("Interface", lang)], theme=theme) as app:
+    reload_button = gr.Button(_("Reload interface", lang))
+
     close_button = gr.Button(_("Close terminal", lang))
     close_button.click(close_terminal, [], [], queue=False)
 
@@ -1639,6 +1700,29 @@ with gr.TabbedInterface([
 
     folder_button = gr.Button(_("Outputs", lang))
     folder_button.click(open_outputs_folder, [], [], queue=False)
+
+    dropdowns_to_update = [
+        llm_dataset_interface.input_components[0],
+        llm_finetune_interface.input_components[0],
+        llm_finetune_interface.input_components[1],
+        llm_evaluate_interface.input_components[0],
+        llm_evaluate_interface.input_components[1],
+        llm_evaluate_interface.input_components[2],
+        llm_quantize_interface.input_components[0],
+        llm_generate_interface.input_components[0],
+        llm_generate_interface.input_components[1],
+        sd_dataset_interface.input_components[1],
+        sd_finetune_interface.input_components[0],
+        sd_finetune_interface.input_components[1],
+        sd_evaluate_interface.input_components[0],
+        sd_evaluate_interface.input_components[1],
+        sd_evaluate_interface.input_components[2],
+        sd_convert_interface.input_components[0],
+        sd_generate_interface.input_components[0],
+        sd_generate_interface.input_components[1],
+    ]
+
+    reload_button.click(reload_interface, outputs=dropdowns_to_update[:8])
 
     github_link = gr.HTML(
         '<div style="text-align: center; margin-top: 20px;">'
@@ -1663,5 +1747,5 @@ with gr.TabbedInterface([
         server_name=settings['server_name'],
         server_port=settings['server_port'],
         favicon_path="project-image.png",
-        auth_message=_("Welcome to NeuroTrainerWebUI!", lang)
+        auth_message=_("Welcome to NeuroTrainerWebUI! (ALPHA)", lang)
     )

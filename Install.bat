@@ -2,23 +2,45 @@
 chcp 65001 > NUL
 
 set CURRENT_DIR=%~dp0
-echo Creating virtual environment.../Создание виртуальной среды...
+echo Creating virtual environment...
 py -m venv "%CURRENT_DIR%venv"
 call "%CURRENT_DIR%venv\Scripts\activate.bat"
 cls
 
-echo Upgrading pip, setuptools and whell.../Обновление pip, setuptools и wheel...
-py -m pip install --upgrade pip setuptools
-pip install wheel
+echo Upgrading pip, setuptools and wheel...
+python -m pip install --upgrade pip
+pip install wheel setuptools
+timeout /t 3 /nobreak >nul
 cls
 
-echo Installing dependencies.../Установка зависимостей...
-pip install --no-deps -r "%CURRENT_DIR%requirements.txt"
-pip install --no-deps -r "%CURRENT_DIR%requirements-cuda.txt"
-pip install --no-deps -r "%CURRENT_DIR%requirements-llama-cpp.txt"
+echo Installing dependencies...
+if not exist "%CURRENT_DIR%logs" mkdir "%CURRENT_DIR%logs"
+set ERROR_LOG="%CURRENT_DIR%logs\installation_errors.log"
+type nul > %ERROR_LOG%
+
+pip install --no-deps -r "%CURRENT_DIR%RequirementsFiles\requirements.txt" 2>> %ERROR_LOG%
+pip install --no-deps -r "%CURRENT_DIR%RequirementsFiles\requirements-cuda.txt" 2>> %ERROR_LOG%
+pip install --no-deps -r "%CURRENT_DIR%RequirementsFiles\requirements-llama-cpp.txt" 2>> %ERROR_LOG%
+pip install --no-deps -r "%CURRENT_DIR%RequirementsFiles\requirements-stable-diffusion-cpp.txt" 2>> %ERROR_LOG%
+timeout /t 3 /nobreak >nul
 cls
 
-echo Application has been installed successfully. Run start.bat/Приложение успешно установлено. Запустите start.bat
+echo Post-installing patches...
+python "%CURRENT_DIR%RequirementsFiles\post_install.py"
+timeout /t 3 /nobreak >nul
+cls
+
+echo Checking for installation errors...
+findstr /C:"error" %ERROR_LOG% >nul
+if %ERRORLEVEL% equ 0 (
+    echo Some packages failed to install. Please check %ERROR_LOG% for details.
+) else (
+    echo Installation completed successfully.
+)
+timeout /t 5 /nobreak >nul
+cls
+
+echo Application installation process completed. Run start.bat to launch the application.
 
 call "%CURRENT_DIR%venv\Scripts\deactivate.bat"
 

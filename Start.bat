@@ -5,32 +5,27 @@ set CURRENT_DIR=%~dp0
 
 call "%CURRENT_DIR%venv\Scripts\activate.bat"
 
-:menu
-echo Select a file for launch/Выберите файл для запуска:
-echo [English version: 1] appEN.py
-echo [Русская версия: 2] appRU.py
-echo.
-
-:input
-set /p choice=Enter number/Введите число:
-if "%choice%"=="1" (
-    cls
-    start /b py "%CURRENT_DIR%appEN.py"
-    timeout /t 30 > NUL
-    start http://localhost:7860
-    goto end
+echo Attempting to read Settings.json...
+if not exist Settings.json (
+    echo Settings.json file not found!
+    pause
+    exit /b
 )
 
-if "%choice%"=="2" (
-    cls
-    start /b py "%CURRENT_DIR%appRU.py"
-    timeout /t 30 > NUL
-    start http://localhost:7860
-    goto end
+for /f "tokens=2 delims=:, " %%a in ('type Settings.json ^| findstr "hf_token"') do set HF_TOKEN=%%~a
+echo HF_TOKEN value: "%HF_TOKEN%"
+if "%HF_TOKEN%"=="" (
+    echo HF token is empty or not found in Settings.json. Please add your Hugging Face token to this file.
+    type Settings.json
+    pause
+    exit /b
 )
 
-echo Invalid choice, please try again/Неверный выбор, попробуйте еще раз
-goto input
+echo Logging in to Hugging Face...
+huggingface-cli login --token %HF_TOKEN% --add-to-git-credential
 
-:end
+cls
+echo Launching NeuroTrainerWebUI...
+start /b py -c "import os, sys; sys.path.insert(0, os.path.join(os.path.dirname(__name__), 'LaunchFile')); import app"
+
 call "%CURRENT_DIR%venv\Scripts\deactivate.bat"

@@ -139,6 +139,7 @@
   "StableDiffusion": "StableDiffusion",
   "Interface": "界面",
   "Close terminal": "关闭终端",
+  "Reload interface": "重新加载界面",
   "Finetuned-models": "微调模型",
   "Datasets": "数据集",
   "Outputs": "输出",

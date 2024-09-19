@@ -1746,6 +1746,6 @@ with gr.TabbedInterface([
         auth=authenticate if settings['auth'] else None,
         server_name=settings['server_name'],
         server_port=settings['server_port'],
-        favicon_path="project-image.png",
+        favicon_path="project-image.jpg",
         auth_message=_("Welcome to NeuroTrainerWebUI! (ALPHA)", lang)
     )

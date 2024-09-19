@@ -139,6 +139,7 @@
   "StableDiffusion": "StableDiffusion",
   "Interface": "Интерфейс",
   "Close terminal": "Закрыть терминал",
+  "Reload interface": "Перезагрузить интерфейс",
   "Finetuned-models": "Тонко настроенные модели",
   "Datasets": "Наборы данных",
   "Outputs": "Выходные данные",

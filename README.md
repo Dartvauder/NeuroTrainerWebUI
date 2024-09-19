@@ -97,7 +97,6 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 * [StableDiffusion1.5](https://huggingface.co/spaces/CompVis/stable-diffusion-license)
 * [StableDiffusion2](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md)
 * [StableDiffusionXL](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md)
-* [TrainerScripts](http://www.apache.org/licenses/LICENSE-2.0)
 * [CLIP](https://huggingface.co/openai/clip-vit-base-patch16)
 * [BERT](https://huggingface.co/google-bert/bert-base-uncased)
 * [LLAMA.CPP](https://github.com/ggerganov/llama.cpp/blob/master/LICENSE)

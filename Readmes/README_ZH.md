@@ -13,11 +13,11 @@
 
 项目目标 - 创建一个尽可能简单的应用程序来微调、评估和生成神经网络模型。
 
-### LLM：
+### LLM：<img width="1118" alt="1zh" src="https://github.com/user-attachments/assets/6cbe2513-8673-4e1d-94b7-6f88593ebd5b">
 
-### StableDiffusion：
+### StableDiffusion：<img width="1115" alt="2zh" src="https://github.com/user-attachments/assets/4efba30f-db7c-429a-8672-3b0d32f39cf9">
 
-### 界面：
+### 界面：<img width="1120" alt="3zh" src="https://github.com/user-attachments/assets/2ec0d5a8-d463-4547-8d68-d2d0576bbeba">
 
 ## 功能：
 

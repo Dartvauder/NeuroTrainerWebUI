@@ -11,11 +11,11 @@ A simple and convenient interface for using of various neural network models. Yo
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: 
+### LLM: <img width="1118" alt="1" src="https://github.com/user-attachments/assets/683e7313-d6b2-45e8-8cbd-b919d9936123">
 
-### StableDiffusion: 
+### StableDiffusion: <img width="1114" alt="2" src="https://github.com/user-attachments/assets/1ac84a3f-ad6f-44ad-bacf-fc491fbaadd6">
 
-### Interface: 
+### Interface: <img width="1117" alt="3" src="https://github.com/user-attachments/assets/dfb8a606-6d11-4104-83fc-51a74a0b258a">
 
 ## Features:
 

@@ -3,7 +3,8 @@
 ![project-image](https://github.com/user-attachments/assets/2a47ff0d-9131-4c3b-897b-46f7cb9e4ae2)
 
 * Work in progress! (ALPHA)
-* English
+* English | [Русский](/Readmes/README_RU.md) | [漢語](/Readmes/README_ZH.md) 
+
 
 ## Description:
 

@@ -50,6 +50,8 @@
   "Generated text": "Сгенерированный текст",
   "Message": "Сообщение",
   "LLM Settings": "Настройки LLM",
+  "LLM text response": "Текстовый ответ LLM",
+  "Generation process": "Процесс генерации",
   "NeuroTrainerWebUI (ALPHA) - LLM-Generate": "NeuroTrainerWebUI (АЛЬФА) - LLM-Генерация",
   "Generate text using finetuned LLM models": "Генерация текста с использованием тонко настроенных моделей LLM",
   "Image Files": "Файлы изображений",

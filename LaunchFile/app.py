@@ -1,6 +1,7 @@
 import logging
 import os
 import warnings
+import importlib
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 warnings.filterwarnings("ignore")
@@ -19,10 +20,7 @@ import xformers
 from git import Repo
 import requests
 import gradio as gr
-from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
-from llama_cpp import Llama
 from peft import LoraConfig, get_peft_model, PeftModel
-from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline, DDPMScheduler
 from datasets import load_dataset
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,6 +51,53 @@ import subprocess
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 from mauve import compute_mauve
 from sklearn.metrics import accuracy_score, precision_score
+
+
+def lazy_import(module_name, fromlist):
+    module = None
+    def wrapper():
+        nonlocal module
+        if module is None:
+            if fromlist:
+                module = importlib.import_module(module_name, fromlist)
+            else:
+                module = importlib.import_module(module_name)
+        return module
+    return wrapper
+
+
+# Transformers import
+AutoModelForCausalLM = lazy_import('transformers', 'AutoModelForCausalLM')
+AutoTokenizer = lazy_import('transformers', 'AutoTokenizer')
+DataCollatorForLanguageModeling = lazy_import('transformers', 'DataCollatorForLanguageModeling')
+Trainer = lazy_import('transformers', 'Trainer')
+TrainingArguments = lazy_import('transformers', 'TrainingArguments')
+
+# Diffusers import
+StableDiffusionPipeline = lazy_import('diffusers', 'StableDiffusionPipeline')
+StableDiffusionXLPipeline = lazy_import('diffusers', 'StableDiffusionXLPipeline')
+AutoencoderKL = lazy_import('diffusers', 'AutoencoderKL')
+DPMSolverSinglestepScheduler = lazy_import('diffusers', 'DPMSolverSinglestepScheduler')
+DPMSolverMultistepScheduler = lazy_import('diffusers', 'DPMSolverMultistepScheduler')
+EDMDPMSolverMultistepScheduler = lazy_import('diffusers', 'EDMDPMSolverMultistepScheduler')
+EDMEulerScheduler = lazy_import('diffusers', 'EDMEulerScheduler')
+KDPM2DiscreteScheduler = lazy_import('diffusers', 'KDPM2DiscreteScheduler')
+KDPM2AncestralDiscreteScheduler = lazy_import('diffusers', 'KDPM2AncestralDiscreteScheduler')
+EulerDiscreteScheduler = lazy_import('diffusers', 'EulerDiscreteScheduler')
+EulerAncestralDiscreteScheduler = lazy_import('diffusers', 'EulerAncestralDiscreteScheduler')
+HeunDiscreteScheduler = lazy_import('diffusers', 'HeunDiscreteScheduler')
+LMSDiscreteScheduler = lazy_import('diffusers', 'LMSDiscreteScheduler')
+DEISMultistepScheduler = lazy_import('diffusers', 'DEISMultistepScheduler')
+UniPCMultistepScheduler = lazy_import('diffusers', 'UniPCMultistepScheduler')
+LCMScheduler = lazy_import('diffusers', 'LCMScheduler')
+DPMSolverSDEScheduler = lazy_import('diffusers', 'DPMSolverSDEScheduler')
+TCDScheduler = lazy_import('diffusers', 'TCDScheduler')
+DDIMScheduler = lazy_import('diffusers', 'DDIMScheduler')
+DDPMScheduler = lazy_import('diffusers', 'DDPMScheduler')
+DDIMInverseScheduler = lazy_import('diffusers', 'DDIMInverseScheduler')
+
+# Another imports
+Llama = lazy_import('llama_cpp', 'Llama')
 
 
 def print_system_info():
@@ -221,6 +266,19 @@ def get_available_sd_models():
     return sd_available_models
 
 
+def get_available_vae_sd_models():
+    models_dir = "finetuned-models/sd/vae"
+    os.makedirs(models_dir, exist_ok=True)
+
+    sd_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            sd_available_models.append(model_name)
+
+    return sd_available_models
+
+
 def get_available_sd_lora_models():
     models_dir = "finetuned-models/sd/lora"
     os.makedirs(models_dir, exist_ok=True)
@@ -266,13 +324,14 @@ def reload_model_lists():
     finetuned_llm_models = get_available_finetuned_llm_models()
     llm_datasets = get_available_llm_datasets()
     sd_models = get_available_sd_models()
+    sd_vae_models = get_available_vae_sd_models()
     sd_lora_models = get_available_sd_lora_models()
     finetuned_sd_models = get_available_finetuned_sd_models()
     sd_datasets = get_available_sd_datasets()
 
     return [
         llm_models, llm_lora_models, finetuned_llm_models, llm_datasets,
-        sd_models, sd_lora_models, finetuned_sd_models, sd_datasets
+        sd_models, sd_vae_models, sd_lora_models, finetuned_sd_models, sd_datasets
     ]
 
 
@@ -288,8 +347,8 @@ def load_model_and_tokenizer(model_name, finetuned=False):
         model_path = os.path.join("models/llm", model_name)
     try:
         device = "cuda"
-        model = AutoModelForCausalLM.from_pretrained(model_path, device_map=device)
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        model = AutoModelForCausalLM().AutoModelForCausalLM.from_pretrained(model_path, device_map=device)
+        tokenizer = AutoTokenizer().AutoTokenizer.from_pretrained(model_path)
         return model, tokenizer
     except Exception as e:
         print(f"Error loading model and tokenizer: {e}")
@@ -349,7 +408,7 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
         print(f"Error loading dataset: {e}")
         return f"Error loading dataset. Please check the dataset path and format. Error: {e}", None
 
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
+    data_collator = DataCollatorForLanguageModeling().DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
     if finetune_method == "Full" or "Freeze":
         save_dir = os.path.join("finetuned-models/llm/full", model_output_name)
@@ -360,7 +419,7 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
 
     save_path = save_dir
 
-    training_args = TrainingArguments(
+    training_args = TrainingArguments().TrainingArguments(
         output_dir=save_path,
         overwrite_output_dir=True,
         num_train_epochs=epochs,
@@ -404,7 +463,7 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
                 for param in layer.parameters():
                     param.requires_grad = False
 
-    trainer = Trainer(
+    trainer = Trainer().Trainer(
         model=model,
         args=training_args,
         data_collator=data_collator,
@@ -686,7 +745,7 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_length, t
 
         try:
 
-            llm = Llama(model_path=model_path, n_ctx=max_length, n_parts=-1, seed=-1, f16_kv=True, logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1, suffix=None)
+            llm = Llama().Llama(model_path=model_path, n_ctx=max_length, n_parts=-1, seed=-1, f16_kv=True, logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1, suffix=None)
 
             output = llm(prompt, max_tokens=max_length, top_k=top_k, top_p=top_p, temperature=temperature, stop=None, echo=False)
 
@@ -945,33 +1004,23 @@ def plot_sd_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_type, user_prompt, negative_prompt, num_inference_steps, cfg_scale):
+def evaluate_sd(model_name, model_scheduler, vae_model_name, lora_model_names, lora_scales, dataset_name, model_method, model_type, user_prompt, negative_prompt, num_inference_steps, cfg_scale):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     if model_method == "Diffusers":
         if model_type == "SD":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16,
-                                                            safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+            model = StableDiffusionPipeline().StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(device)
         elif model_type == "SDXL":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline.from_pretrained(model_path, torch_dtype=torch.float16, attention_slice=1,
-                                                              safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+            model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_pretrained(model_path, torch_dtype=torch.float16, attention_slice=1, safety_checker=None).to(device)
     elif model_method == "Safetensors":
         if model_type == "SD":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16,
-                                                             safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+            model = StableDiffusionPipeline().StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16,safety_checker=None).to(device)
         elif model_type == "SDXL":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline.from_single_file(model_path, torch_dtype=torch.float16, attention_slice=1,
-                                                               safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+            model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_single_file(model_path, torch_dtype=torch.float16, attention_slice=1, safety_checker=None).to(device)
     else:
         return "Invalid model type selected", None
 
@@ -981,12 +1030,117 @@ def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_t
     if not dataset_name:
         return "Please select the dataset", None
 
-    if lora_model_name and not model_name:
+    if lora_model_names and not model_name:
         return "Please select the original model", None
 
-    if lora_model_name:
-        lora_model_path = os.path.join("finetuned-models/sd/lora", lora_model_name)
-        model.unet.load_attn_procs(lora_model_path)
+    if vae_model_name is not None:
+        vae_model_path = os.path.join("inputs", "image", "sd_models", "vae", f"{vae_model_name}.safetensors")
+        if os.path.exists(vae_model_path):
+            vae = AutoencoderKL().AutoencoderKL.from_single_file(vae_model_path, device_map="auto",
+                                                 torch_dtype=torch.float16,
+                                                 variant="fp16")
+            model.vae = vae.to(device)
+
+    if isinstance(lora_scales, str):
+        lora_scales = [float(scale.strip()) for scale in lora_scales.split(',') if scale.strip()]
+    elif isinstance(lora_scales, (int, float)):
+        lora_scales = [float(lora_scales)]
+
+    lora_loaded = False
+    if lora_model_names and lora_scales:
+        if len(lora_model_names) != len(lora_scales):
+            print(
+                f"Warning: Number of LoRA models ({len(lora_model_names)}) does not match number of scales ({len(lora_scales)}). Using available scales.")
+
+        for i, lora_model_name in enumerate(lora_model_names):
+            if i < len(lora_scales):
+                lora_scale = lora_scales[i]
+            else:
+                lora_scale = 1.0
+
+            lora_model_path = os.path.join("inputs", "image", "sd_models", "lora", lora_model_name)
+            if os.path.exists(lora_model_path):
+                adapter_name = os.path.splitext(os.path.basename(lora_model_name))[0]
+                try:
+                    model.load_lora_weights(lora_model_path, adapter_name=adapter_name)
+                    model.fuse_lora(lora_scale=lora_scale)
+                    lora_loaded = True
+                    print(f"Loaded LoRA {lora_model_name} with scale {lora_scale}")
+                except Exception as e:
+                    print(f"Error loading LoRA {lora_model_name}: {str(e)}")
+                    
+    model.enable_xformers_memory_efficient_attention(attention_op=None)
+    model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
+    model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
+
+    model.to(device)
+    model.text_encoder.to(device)
+    model.vae.to(device)
+    model.unet.to(device)
+
+    try:
+        if model_scheduler == "EulerDiscreteScheduler":
+            model.scheduler = EulerDiscreteScheduler().EulerDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DPMSolverSinglestepScheduler":
+            model.scheduler = DPMSolverSinglestepScheduler().DPMSolverSinglestepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DPMSolverMultistepScheduler":
+            model.scheduler = DPMSolverMultistepScheduler().DPMSolverMultistepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "EDMDPMSolverMultistepScheduler":
+            model.scheduler = EDMDPMSolverMultistepScheduler().EDMDPMSolverMultistepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "EDMEulerScheduler":
+            model.scheduler = EDMEulerScheduler().EDMEulerScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "KDPM2DiscreteScheduler":
+            model.scheduler = KDPM2DiscreteScheduler().KDPM2DiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "KDPM2AncestralDiscreteScheduler":
+            model.scheduler = KDPM2AncestralDiscreteScheduler().KDPM2AncestralDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "EulerAncestralDiscreteScheduler":
+            model.scheduler = EulerAncestralDiscreteScheduler().EulerAncestralDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "HeunDiscreteScheduler":
+            model.scheduler = HeunDiscreteScheduler().HeunDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "LMSDiscreteScheduler":
+            model.scheduler = LMSDiscreteScheduler().LMSDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DEISMultistepScheduler":
+            model.scheduler = DEISMultistepScheduler().DEISMultistepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "UniPCMultistepScheduler":
+            model.scheduler = UniPCMultistepScheduler().UniPCMultistepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "LCMScheduler":
+            model.scheduler = LCMScheduler().LCMScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DPMSolverSDEScheduler":
+            model.scheduler = DPMSolverSDEScheduler().DPMSolverSDEScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "TCDScheduler":
+            model.scheduler = TCDScheduler().TCDScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DDIMScheduler":
+            model.scheduler = DDIMScheduler().DDIMScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DDPMScheduler":
+            model.scheduler = DDPMScheduler().DDPMScheduler.from_config(
+                model.scheduler.config)
+
+        print(f"Scheduler successfully set to {model_scheduler}")
+    except Exception as e:
+        print(f"Error initializing scheduler: {e}")
+        print("Using default scheduler")
+
+    model.safety_checker = None
+
+    model.enable_vae_slicing()
+    model.enable_vae_tiling()
+    model.enable_model_cpu_offload()
 
     dataset_path = os.path.join("datasets/sd", dataset_name)
     dataset = load_dataset("imagefolder", data_dir=dataset_path)
@@ -1118,45 +1272,140 @@ def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safete
             return f"Error converting model to single file: {e}"
 
 
-def generate_image(model_name, lora_model_name, model_method, model_type, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
+def generate_image(model_name, model_scheduler, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     if model_method == "Diffusers":
         if model_type == "SD":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16,
-                                                            safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+            model = StableDiffusionPipeline().StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, safety_checker=None).to(device)
         elif model_type == "SDXL":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline.from_pretrained(model_path, torch_dtype=torch.float16, attention_slice=1,
-                                                            safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+            model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_pretrained(model_path, torch_dtype=torch.float16, attention_slice=1, safety_checker=None).to(device)
     elif model_method == "Safetensors":
         if model_type == "SD":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16,
-                                                            safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+            model = StableDiffusionPipeline().StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16, safety_checker=None).to(device)
         elif model_type == "SDXL":
             model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline.from_single_file(model_path, torch_dtype=torch.float16, attention_slice=1,
-                                                              safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+            model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_single_file(model_path, torch_dtype=torch.float16, attention_slice=1, safety_checker=None).to(device)
     else:
         return "Invalid model type selected", None
 
     if not model_name:
         return "Please select the model", None
 
-    if lora_model_name and not model_name:
+    if lora_model_names and not model_name:
         return "Please select the original model", None
 
-    if lora_model_name:
-        lora_model_path = os.path.join("finetuned-models/sd/lora", lora_model_name)
-        model.unet.load_attn_procs(lora_model_path)
+    if vae_model_name is not None:
+        vae_model_path = os.path.join("inputs", "image", "sd_models", "vae", f"{vae_model_name}.safetensors")
+        if os.path.exists(vae_model_path):
+            vae = AutoencoderKL().AutoencoderKL.from_single_file(vae_model_path, device_map="auto",
+                                                 torch_dtype=torch.float16,
+                                                 variant="fp16")
+            model.vae = vae.to(device)
+
+    model.enable_xformers_memory_efficient_attention(attention_op=None)
+    model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
+    model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
+
+    model.to(device)
+    model.text_encoder.to(device)
+    model.vae.to(device)
+    model.unet.to(device)
+
+    try:
+        if model_scheduler == "EulerDiscreteScheduler":
+            model.scheduler = EulerDiscreteScheduler().EulerDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DPMSolverSinglestepScheduler":
+            model.scheduler = DPMSolverSinglestepScheduler().DPMSolverSinglestepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DPMSolverMultistepScheduler":
+            model.scheduler = DPMSolverMultistepScheduler().DPMSolverMultistepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "EDMDPMSolverMultistepScheduler":
+            model.scheduler = EDMDPMSolverMultistepScheduler().EDMDPMSolverMultistepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "EDMEulerScheduler":
+            model.scheduler = EDMEulerScheduler().EDMEulerScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "KDPM2DiscreteScheduler":
+            model.scheduler = KDPM2DiscreteScheduler().KDPM2DiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "KDPM2AncestralDiscreteScheduler":
+            model.scheduler = KDPM2AncestralDiscreteScheduler().KDPM2AncestralDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "EulerAncestralDiscreteScheduler":
+            model.scheduler = EulerAncestralDiscreteScheduler().EulerAncestralDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "HeunDiscreteScheduler":
+            model.scheduler = HeunDiscreteScheduler().HeunDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "LMSDiscreteScheduler":
+            model.scheduler = LMSDiscreteScheduler().LMSDiscreteScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DEISMultistepScheduler":
+            model.scheduler = DEISMultistepScheduler().DEISMultistepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "UniPCMultistepScheduler":
+            model.scheduler = UniPCMultistepScheduler().UniPCMultistepScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "LCMScheduler":
+            model.scheduler = LCMScheduler().LCMScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DPMSolverSDEScheduler":
+            model.scheduler = DPMSolverSDEScheduler().DPMSolverSDEScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "TCDScheduler":
+            model.scheduler = TCDScheduler().TCDScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DDIMScheduler":
+            model.scheduler = DDIMScheduler().DDIMScheduler.from_config(
+                model.scheduler.config)
+        elif model_scheduler == "DDPMScheduler":
+            model.scheduler = DDPMScheduler().DDPMScheduler.from_config(
+                model.scheduler.config)
+
+        print(f"Scheduler successfully set to {model_scheduler}")
+    except Exception as e:
+        print(f"Error initializing scheduler: {e}")
+        print("Using default scheduler")
+
+    model.safety_checker = None
+
+    model.enable_vae_slicing()
+    model.enable_vae_tiling()
+    model.enable_model_cpu_offload()
+
+    if isinstance(lora_scales, str):
+        lora_scales = [float(scale.strip()) for scale in lora_scales.split(',') if scale.strip()]
+    elif isinstance(lora_scales, (int, float)):
+        lora_scales = [float(lora_scales)]
+
+    lora_loaded = False
+    if lora_model_names and lora_scales:
+        if len(lora_model_names) != len(lora_scales):
+            print(
+                f"Warning: Number of LoRA models ({len(lora_model_names)}) does not match number of scales ({len(lora_scales)}). Using available scales.")
+
+        for i, lora_model_name in enumerate(lora_model_names):
+            if i < len(lora_scales):
+                lora_scale = lora_scales[i]
+            else:
+                lora_scale = 1.0
+
+            lora_model_path = os.path.join("inputs", "image", "sd_models", "lora", lora_model_name)
+            if os.path.exists(lora_model_path):
+                adapter_name = os.path.splitext(os.path.basename(lora_model_name))[0]
+                try:
+                    model.load_lora_weights(lora_model_path, adapter_name=adapter_name)
+                    model.fuse_lora(lora_scale=lora_scale)
+                    lora_loaded = True
+                    print(f"Loaded LoRA {lora_model_name} with scale {lora_scale}")
+                except Exception as e:
+                    print(f"Error loading LoRA {lora_model_name}: {str(e)}")
 
     image = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
                   guidance_scale=cfg_scale, width=width, height=height).images[0]
@@ -1374,7 +1623,9 @@ llm_finetune_interface = gr.Interface(
         gr.Dropdown(choices=get_available_llm_models(), label=_("Model", lang)),
         gr.Dropdown(choices=get_available_llm_datasets(), label=_("Dataset", lang)),
         gr.Radio(choices=["Full", "Freeze", "LORA"], value="Full", label=_("Finetune Method", lang)),
-        gr.Textbox(label=_("Output Model Name", lang), type="text"),
+        gr.Textbox(label=_("Output Model Name", lang), type="text")
+    ],
+    additional_inputs=[
         gr.Number(value=10, label=_("Epochs", lang)),
         gr.Number(value=4, label=_("Batch size", lang)),
         gr.Number(value=3e-5, label=_("Learning rate", lang)),
@@ -1385,13 +1636,16 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=0.9, label=_("Adam beta 1", lang)),
         gr.Number(value=0.999, label=_("Adam beta 2", lang)),
         gr.Number(value=1e-8, label=_("Adam epsilon", lang)),
-        gr.Dropdown(choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"], value="linear", label=_("LR Scheduler", lang)),
+        gr.Dropdown(
+            choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
+            value="linear", label=_("LR Scheduler", lang)),
         gr.Number(value=2, label=_("Freeze layers", lang)),
         gr.Number(value=16, label=_("LORA r", lang)),
         gr.Number(value=32, label=_("LORA alpha", lang)),
         gr.Number(value=0.05, label=_("LORA dropout", lang)),
-        gr.Checkbox(label=_("Use xformers", lang), value=False),
+        gr.Checkbox(label=_("Use xformers", lang), value=False)
     ],
+    additional_inputs_accordion=gr.Accordion(label=_("LLM-Finetune Settings", lang), open=False),
     outputs=[
         gr.Textbox(label=_("Finetuning Status", lang), type="text"),
         gr.Plot(label=_("Finetuning Loss", lang))
@@ -1482,12 +1736,16 @@ sd_finetune_interface = gr.Interface(
         gr.Dropdown(choices=get_available_sd_datasets(), label=_("Dataset", lang)),
         gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang)),
         gr.Radio(choices=["Full", "LORA"], value="Full", label=_("Finetune Method", lang)),
-        gr.Textbox(label=_("Output Model Name", lang), type="text"),
+        gr.Textbox(label=_("Output Model Name", lang), type="text")
+    ],
+    additional_inputs=[
         gr.Number(value=512, label=_("Resolution", lang)),
         gr.Number(value=1, label=_("Train Batch Size", lang)),
         gr.Number(value=1, label=_("Gradient Accumulation Steps", lang)),
         gr.Number(value=5e-6, label=_("Learning Rate", lang)),
-        gr.Dropdown(choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"], value="linear", label=_("LR Scheduler", lang)),
+        gr.Dropdown(
+            choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
+            value="linear", label=_("LR Scheduler", lang)),
         gr.Number(value=0, label=_("LR Warmup Steps", lang)),
         gr.Number(value=100, label=_("Max Train Steps", lang)),
         gr.Number(value=0.9, label=_("Adam beta 1", lang)),
@@ -1497,8 +1755,9 @@ sd_finetune_interface = gr.Interface(
         gr.Number(value=1.0, label=_("Max grad norm", lang)),
         gr.Number(value=0, label=_("Noise offset", lang)),
         gr.Number(value=4, label=_("LORA Rank", lang)),
-        gr.Checkbox(label=_("Use xformers", lang), value=False),
+        gr.Checkbox(label=_("Use xformers", lang), value=False)
     ],
+    additional_inputs_accordion=gr.Accordion(label=_("StableDiffusion-Finetune Settings", lang), open=False),
     outputs=[
         gr.Textbox(label=_("Finetuning Status", lang), type="text"),
         gr.Plot(label=_("Finetuning Loss", lang))
@@ -1512,7 +1771,17 @@ sd_evaluate_interface = gr.Interface(
     fn=evaluate_sd,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label=_("Model", lang)),
+        gr.Dropdown(choices=[
+            "EulerDiscreteScheduler", "DPMSolverSinglestepScheduler", "DPMSolverMultistepScheduler",
+            "EDMDPMSolverMultistepScheduler", "EDMEulerScheduler", "KDPM2DiscreteScheduler",
+            "KDPM2AncestralDiscreteScheduler", "EulerAncestralDiscreteScheduler",
+            "HeunDiscreteScheduler", "LMSDiscreteScheduler", "DEISMultistepScheduler",
+            "UniPCMultistepScheduler", "LCMScheduler", "DPMSolverSDEScheduler",
+            "TCDScheduler", "DDIMScheduler", "DDPMScheduler"
+        ], label=_("Select scheduler", lang), value="EulerDiscreteScheduler"),
+        gr.Dropdown(choices=get_available_vae_sd_models(), label=_("Select VAE model (optional)", lang), value=None),
         gr.Dropdown(choices=get_available_sd_lora_models(), label=_("LORA Model (optional)", lang)),
+        gr.Textbox(label=_("LoRA Scales", lang)),
         gr.Dropdown(choices=get_available_sd_datasets(), label=_("Dataset", lang)),
         gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label=_("Model Method", lang)),
         gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang)),
@@ -1550,7 +1819,17 @@ sd_generate_interface = gr.Interface(
     fn=generate_image,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label=_("Model", lang)),
+        gr.Dropdown(choices=[
+            "EulerDiscreteScheduler", "DPMSolverSinglestepScheduler", "DPMSolverMultistepScheduler",
+            "EDMDPMSolverMultistepScheduler", "EDMEulerScheduler", "KDPM2DiscreteScheduler",
+            "KDPM2AncestralDiscreteScheduler", "EulerAncestralDiscreteScheduler",
+            "HeunDiscreteScheduler", "LMSDiscreteScheduler", "DEISMultistepScheduler",
+            "UniPCMultistepScheduler", "LCMScheduler", "DPMSolverSDEScheduler",
+            "TCDScheduler", "DDIMScheduler", "DDPMScheduler"
+        ], label=_("Select scheduler", lang), value="EulerDiscreteScheduler"),
+        gr.Dropdown(choices=get_available_vae_sd_models(), label=_("Select VAE model (optional)", lang), value=None),
         gr.Dropdown(choices=get_available_sd_lora_models(), label=_("LORA Model (optional)", lang)),
+        gr.Textbox(label=_("LoRA Scales", lang)),
         gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label=_("Model Method", lang)),
         gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang)),
         gr.Textbox(label=_("Prompt", lang), type="text"),
@@ -1715,11 +1994,13 @@ with gr.TabbedInterface([
         sd_finetune_interface.input_components[0],
         sd_finetune_interface.input_components[1],
         sd_evaluate_interface.input_components[0],
-        sd_evaluate_interface.input_components[1],
         sd_evaluate_interface.input_components[2],
+        sd_evaluate_interface.input_components[3],
+        sd_evaluate_interface.input_components[5],
         sd_convert_interface.input_components[0],
         sd_generate_interface.input_components[0],
-        sd_generate_interface.input_components[1],
+        sd_generate_interface.input_components[2],
+        sd_generate_interface.input_components[3],
     ]
 
     reload_button.click(reload_interface, outputs=dropdowns_to_update[:8])

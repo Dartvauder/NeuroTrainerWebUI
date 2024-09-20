@@ -26,6 +26,7 @@ from pathlib import Path
 
 import datasets
 import numpy as np
+import psutil
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
@@ -59,6 +60,12 @@ if is_wandb_available():
 check_min_version("0.30.0")
 
 logger = get_logger(__name__, log_level="INFO")
+
+
+def get_memory_usage():
+    cpu_mem = psutil.virtual_memory().percent
+    gpu_mem = torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated() * 100 if torch.cuda.is_available() else 0
+    return cpu_mem, gpu_mem
 
 
 def save_model_card(
@@ -868,6 +875,12 @@ def main():
                 global_step += 1
                 accelerator.log({"train_loss": train_loss}, step=global_step)
                 train_loss = 0.0
+
+                if global_step % 1 == 0:
+                    cpu_mem, gpu_mem = get_memory_usage()
+                    logger.info(f"Step {global_step}:")
+                    logger.info(f"CPU Memory: {cpu_mem:.2f}%")
+                    logger.info(f"GPU Memory: {gpu_mem:.2f}%")
 
                 if global_step % args.checkpointing_steps == 0:
                     if accelerator.is_main_process:

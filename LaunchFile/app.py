@@ -12,6 +12,7 @@ os.environ["XDG_CACHE_HOME"] = cache_dir
 temp_dir = os.path.join("temp")
 os.makedirs(temp_dir, exist_ok=True)
 os.environ["TMPDIR"] = temp_dir
+from compel import Compel, ReturnedEmbeddingsType
 import random
 import imageio
 import markdown
@@ -393,6 +394,66 @@ def load_model_and_tokenizer(model_name, finetuned=False):
         return None, None
 
 
+def load_model(model_name, model_type, n_ctx=None):
+    if model_name:
+        model_path = f"finetuned-models/llm/full/{model_name}"
+        if model_type == "transformers":
+            try:
+                tokenizer = AutoTokenizer().AutoTokenizer.from_pretrained(model_path)
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                model = AutoModelForCausalLM().AutoModelForCausalLM.from_pretrained(
+                    model_path,
+                    device_map=device,
+                    load_in_4bit=True,
+                    torch_dtype=torch.float16,
+                    trust_remote_code=True
+                )
+                return tokenizer, model, None
+            except (OSError, RuntimeError):
+                return None, None, "The selected model is not compatible with the 'transformers' model type"
+            except Exception as e:
+                return None, None, str(e)
+        elif model_type == "llama":
+            try:
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                model = Llama().Llama(model_path, n_gpu_layers=-1 if device == "cuda" else 0)
+                model.n_ctx = n_ctx
+                tokenizer = None
+                return tokenizer, model, None
+            except (ValueError, RuntimeError):
+                return None, None, "The selected model is not compatible with the 'llama' model type"
+            except Exception as e:
+                return None, None, str(e)
+    return None, None, None
+
+
+def load_lora_model(base_model_name, lora_model_name, model_type):
+
+    base_model_path = f"finetuned-models/llm/full/{base_model_name}"
+    lora_model_path = f"finetuned-models/llm/lora/{lora_model_name}"
+
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if model_type == "llama":
+            model = Llama().Llama(base_model_path, n_gpu_layers=-1 if device == "cuda" else 0, lora_path=lora_model_path)
+            tokenizer = None
+            return tokenizer, model, None
+        else:
+            base_model = AutoModelForCausalLM().AutoModelForCausalLM.from_pretrained(base_model_path).to(device)
+            model = PeftModel.from_pretrained(base_model, lora_model_path).to(device)
+            merged_model = model.merge_and_unload()
+            tokenizer = AutoTokenizer().AutoTokenizer.from_pretrained(base_model_path)
+            return tokenizer, merged_model, None
+    except Exception as e:
+        return None, None, str(e)
+    finally:
+        if 'tokenizer' in locals():
+            del tokenizer
+        if 'merged_model' in locals():
+            del merged_model
+        flush()
+
+
 def create_llm_dataset(existing_file, file_name, instruction, input_text, output_text):
     if existing_file:
         file_path = os.path.join("datasets", "llm", existing_file)
@@ -486,7 +547,6 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
 
         if use_xformers:
             try:
-                import xformers.ops
                 model.enable_xformers_memory_efficient_attention()
             except ImportError:
                 print("xformers not installed. Proceeding without memory-efficient attention.")
@@ -757,112 +817,120 @@ def quantize_llm(model_name, quantization_type):
         flush()
 
 
-def generate_text(model_name, lora_model_name, model_type, prompt, max_tokens, temperature, top_p, top_k, output_format):
+def generate_text(model_name, lora_model_name, model_type, prompt, max_tokens, temperature, top_p, top_k,
+                  output_format):
+    global chat_history
+    text = None
+
+    if not chat_history:
+        chat_history = []
+
     if not model_name:
-        return None, "Please select the model"
+        chat_history.append([None, "Please select the model"])
+        return chat_history, "Please select the model"
 
     if lora_model_name and not model_name:
-        return None, "Please select the original model"
+        chat_history.append([None, "Please select the original model"])
+        return chat_history, "Please select the original model"
 
     try:
+        tokenizer, llm_model, error_message = load_model(model_name, model_type)
+        if lora_model_name:
+            tokenizer, llm_model, error_message = load_lora_model(model_name, lora_model_name, model_type)
+        if error_message:
+            chat_history.append([None, error_message])
+            return chat_history, error_message
+
+        text = ""
+        if not chat_history or chat_history[-1][1] is not None:
+            chat_history.append([prompt, ""])
+
+        context = ""
+        for human_text, ai_text in chat_history[-5:]:
+            if human_text:
+                context += f"Human: {human_text}\n"
+            if ai_text:
+                context += f"AI: {ai_text}\n"
+
+        full_prompt = f"{context}Human: {prompt}\nAI:"
+
         if model_type == "transformers":
-            model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
-            if model is None or tokenizer is None:
-                return None, "Error loading model and tokenizer. Please check the model path."
+            text = ""
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            tokenizer.pad_token = tokenizer.eos_token
+            tokenizer.padding_side = "left"
+            inputs = tokenizer(full_prompt, return_tensors="pt", padding=True, truncation=True).to(device)
 
-            if lora_model_name:
-                lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
-                model = PeftModel.from_pretrained(model, lora_model_path)
+            for i in range(max_tokens):
+                with torch.no_grad():
+                    output = llm_model.generate(
+                        **inputs,
+                        max_new_tokens=max_tokens,
+                        do_sample=True,
+                        top_p=top_p,
+                        top_k=top_k,
+                        temperature=temperature,
+                        repetition_penalty=1.1,
+                        no_repeat_ngram_size=2
+                    )
 
-            try:
-                input_ids = tokenizer.encode(prompt, return_tensors='pt')
-                attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
-                pad_token_id = tokenizer.eos_token_id
+                next_token = output[0][inputs['input_ids'].shape[1]:]
+                next_token_text = tokenizer.decode(next_token, skip_special_tokens=True)
 
-                input_ids = input_ids.to(model.device)
-                attention_mask = attention_mask.to(model.device)
+                if next_token_text.strip() == "":
+                    break
 
-                output = model.generate(
-                    input_ids,
-                    do_sample=True,
-                    attention_mask=attention_mask,
-                    pad_token_id=pad_token_id,
-                    max_new_tokens=max_tokens,
-                    num_return_sequences=1,
+                text += next_token_text
+                chat_history[-1][1] = text
+                yield chat_history
+
+                inputs = tokenizer(full_prompt + text, return_tensors="pt", padding=True, truncation=True).to(device)
+
+        elif model_type == "llama":
+            text = ""
+            for token in llm_model(
+                    full_prompt,
+                    max_tokens=max_tokens,
+                    stop=["Human:", "\n"],
+                    stream=True,
+                    echo=False,
+                    temperature=temperature,
                     top_p=top_p,
                     top_k=top_k,
-                    temperature=temperature,
-                    repetition_penalty=1.1,
-                    num_beams=5,
-                    no_repeat_ngram_size=2,
-                )
+                    repeat_penalty=1.1
+            ):
+                text += token['choices'][0]['text']
+                chat_history[-1][1] = text
+                yield chat_history
 
-                generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+        chat_dir = os.path.join('outputs', f"LLM_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        os.makedirs(os.path.join(chat_dir, 'text'), exist_ok=True)
+        chat_history_path = os.path.join(chat_dir, 'text', f'chat_history.{output_format}')
 
-                output_dir = "outputs/llm"
-                os.makedirs(output_dir, exist_ok=True)
-
-                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                output_file = f"llm_history_{timestamp}.{output_format}"
-                output_path = os.path.join(output_dir, output_file)
-
-                if output_format == "txt":
-                    with open(output_path, "a", encoding="utf-8") as file:
-                        file.write(f"Human: {prompt}\nAI: {generated_text}\n")
-                elif output_format == "json":
-                    history = [{"Human": prompt, "AI": generated_text}]
-                    with open(output_path, "w", encoding="utf-8") as file:
-                        json.dump(history, file, indent=2, ensure_ascii=False)
-
-                return generated_text, "Text generation successful"
-            except Exception as e:
-                print(f"Error during text generation: {e}")
-                return None, f"Text generation failed. Error: {e}"
-
-        elif model_type == "llama.cpp":
-            model_path = os.path.join("finetuned-models/llm/full", model_name)
-
-            try:
-
-                llm = Llama().Llama(model_path=model_path, n_ctx=max_tokens, n_parts=-1, seed=-1, f16_kv=True,
-                                    logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1,
-                                    suffix=None)
-
-                if lora_model_name:
-                    lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
-                    llm = Llama().Llama(model_path, lora_path=lora_model_path)
-
-                output = llm(prompt, max_tokens=max_tokens, top_k=top_k, top_p=top_p, temperature=temperature,
-                             stop=None, echo=False)
-
-                generated_text = output['choices'][0]['text']
-
-                output_dir = "outputs/llm"
-                os.makedirs(output_dir, exist_ok=True)
-
-                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                output_file = f"llm_history_{timestamp}.{output_format}"
-                output_path = os.path.join(output_dir, output_file)
-
-                if output_format == "txt":
-                    with open(output_path, "a", encoding="utf-8") as file:
-                        file.write(f"Human: {prompt}\nAI: {generated_text}\n")
-                elif output_format == "json":
-                    history = [{"Human": prompt, "AI": generated_text}]
-                    with open(output_path, "w", encoding="utf-8") as file:
-                        json.dump(history, file, indent=2, ensure_ascii=False)
-
-                return generated_text, "Text generation successful"
-            except Exception as e:
-                print(f"Error during text generation: {e}")
-                return None, f"Text generation failed. Error: {e}"
+        if output_format == "txt":
+            with open(chat_history_path, "a", encoding="utf-8") as f:
+                f.write(f"Human: {prompt}\n")
+                if text:
+                    f.write(f"AI: {text}\n\n")
+        elif output_format == "json":
+            chat_history_json = []
+            if os.path.exists(chat_history_path):
+                with open(chat_history_path, "r", encoding="utf-8") as f:
+                    chat_history_json = json.load(f)
+            chat_history_json.append(["Human: " + prompt, "AI: " + (text if text else "")])
+            with open(chat_history_path, "w", encoding="utf-8") as f:
+                json.dump(chat_history_json, f, ensure_ascii=False, indent=4)
 
     except Exception as e:
-        return None, str(e)
+        yield str(e), None,
+
     finally:
-        del model
         del tokenizer
+        del llm_model
         flush()
+
+    chat_history[-1][1] = text
+    yield chat_history
 
 
 def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, prompt_text):
@@ -1183,9 +1251,10 @@ def evaluate_sd(model_name, model_scheduler, vae_model_name, lora_model_names, l
                     except Exception as e:
                         print(f"Error loading LoRA {lora_model_name}: {str(e)}")
 
-        model.enable_xformers_memory_efficient_attention(attention_op=None)
-        model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
-        model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
+        if XFORMERS_AVAILABLE:
+            model.enable_xformers_memory_efficient_attention(attention_op=None)
+            model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
+            model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
 
         model.to(device)
         model.text_encoder.to(device)
@@ -1459,9 +1528,10 @@ def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, mo
                                                                      variant="fp16")
                 model.vae = vae.to(device)
 
-        model.enable_xformers_memory_efficient_attention(attention_op=None)
-        model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
-        model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
+        if XFORMERS_AVAILABLE:
+            model.enable_xformers_memory_efficient_attention(attention_op=None)
+            model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
+            model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
 
         model.to(device)
         model.text_encoder.to(device)
@@ -1594,9 +1664,35 @@ def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, mo
 
             return callback_kwargs
 
-        images = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
-                       guidance_scale=cfg_scale, width=width, height=height, generator=generator, clip_skip=clip_skip,
-                       num_images_per_prompt=num_images_per_prompt, callback_on_step_end=combined_callback, callback_on_step_end_tensor_inputs=["latents"]).images[0]
+        if model_type == "SDXL":
+            compel = Compel(
+                tokenizer=[model.tokenizer, model.tokenizer_2],
+                text_encoder=[model.text_encoder, model.text_encoder_2],
+                returned_embeddings_type=ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED,
+                requires_pooled=[False, True]
+            )
+            prompt_embeds, pooled_prompt_embeds = compel(prompt)
+            negative_prompt = negative_prompt
+            images = model(prompt_embeds=prompt_embeds, pooled_prompt_embeds=pooled_prompt_embeds,
+                           negative_prompt=negative_prompt,
+                           num_inference_steps=num_inference_steps,
+                           guidance_scale=cfg_scale, width=width, height=height, generator=generator,
+                           clip_skip=clip_skip,
+                           num_images_per_prompt=num_images_per_prompt,
+                           callback_on_step_end=combined_callback,
+                           callback_on_step_end_tensor_inputs=["latents"]).images[0]
+        else:
+            compel_proc = Compel(tokenizer=model.tokenizer,
+                                 text_encoder=model.text_encoder)
+            prompt_embeds = compel_proc(prompt)
+            negative_prompt_embeds = compel_proc(negative_prompt)
+
+            images = model(prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                           num_inference_steps=num_inference_steps,
+                           guidance_scale=cfg_scale, width=width, height=height, generator=generator,
+                           clip_skip=clip_skip,
+                           num_images_per_prompt=num_images_per_prompt, callback_on_step_end=combined_callback,
+                           callback_on_step_end_tensor_inputs=["latents"]).images[0]
 
         image_paths = []
         gif_images = []
@@ -1938,8 +2034,7 @@ llm_generate_interface = gr.Interface(
     ],
     additional_inputs_accordion=gr.Accordion(label=_("LLM Settings", lang), open=False),
     outputs=[
-        gr.Textbox(label=_("Generated text", lang), type="text"),
-        gr.Textbox(label=_("Message", lang), type="text"),
+        gr.Chatbot(label=_("LLM text response", lang), value=[], avatar_images=["avatars/user.png", "avatars/ai.png"], show_copy_button=True)
     ],
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Generate", lang),
     description=_("Generate text using finetuned LLM models", lang),

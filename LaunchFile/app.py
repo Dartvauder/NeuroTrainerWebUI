@@ -30,6 +30,7 @@ from PIL import Image
 import torch
 from bert_score import score
 import json
+import soundfile as sf
 from datetime import datetime
 from torchmetrics.text.chrf import CHRFScore
 from torchmetrics.image.fid import FrechetInceptionDistance
@@ -98,6 +99,7 @@ TCDScheduler = lazy_import('diffusers', 'TCDScheduler')
 DDIMScheduler = lazy_import('diffusers', 'DDIMScheduler')
 DDPMScheduler = lazy_import('diffusers', 'DDPMScheduler')
 DDIMInverseScheduler = lazy_import('diffusers', 'DDIMInverseScheduler')
+StableAudioPipeline = lazy_import('diffusers', 'StableAudioPipeline')
 
 # Another imports
 Llama = lazy_import('llama_cpp', 'Llama')
@@ -1731,6 +1733,95 @@ def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, mo
         flush()
 
 
+def create_audio_dataset(dataset_name, audio_files):
+    dataset_path = os.path.join("datasets", "audio", dataset_name)
+    os.makedirs(dataset_path, exist_ok=True)
+
+    for i, audio_file in enumerate(audio_files):
+        file_name = f"audio_{i + 1}{os.path.splitext(audio_file.name)[1]}"
+        file_path = os.path.join(dataset_path, file_name)
+        with open(file_path, "wb") as f:
+            f.write(audio_file.read())
+
+    config = {
+        "dataset_type": "audio_dir",
+        "datasets": [
+            {
+                "id": dataset_name,
+                "path": dataset_path
+            }
+        ],
+        "random_crop": True
+    }
+
+    config_path = os.path.join(dataset_path, "config.json")
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=4)
+
+    return f"Dataset '{dataset_name}' created successfully. Config saved at {config_path}"
+
+
+def finetune_audio_model(dataset_folder, model_folder, output_model_name):
+    dataset_path = os.path.join("datasets", "audio", dataset_folder, "config.json")
+    model_path = os.path.join("models", "audio", model_folder, "model_config.json")
+    output_path = os.path.join("finetuned-models", "audio", output_model_name)
+
+    command = [
+        "python", "trainer-scripts/audio/stable-audio-tools/train.py",
+        "--dataset-config", dataset_path,
+        "--model-config", model_path,
+        "--name", output_model_name,
+        "--save-dir", output_path
+    ]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode == 0:
+        return f"Model finetuned successfully. Saved at {output_path}"
+    else:
+        return f"Error during finetuning: {result.stderr}"
+
+
+def generate_audio(model_folder, prompt, negative_prompt, num_inference_steps, guidance_scale, audio_start_in_s,
+                   audio_end_in_s, num_waveforms_per_prompt, seed):
+    model_path = os.path.join("finetuned-models", "audio", model_folder)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    try:
+        pipe = StableAudioPipeline().StableAudioPipeline.from_pretrained(model_path, torch_dtype=torch.float16)
+        pipe = pipe.to(device)
+
+        if seed == "" or seed is None:
+            seed = random.randint(0, 2 ** 32 - 1)
+        else:
+            seed = int(seed)
+        generator = torch.Generator(device).manual_seed(seed)
+
+        audio = pipe(
+            prompt,
+            negative_prompt=negative_prompt,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            audio_start_in_s=audio_start_in_s,
+            audio_end_in_s=audio_end_in_s,
+            num_waveforms_per_prompt=num_waveforms_per_prompt,
+            generator=generator
+        ).audios
+
+        output = audio[0].T.float().cpu().numpy()
+        output_path = os.path.join("outputs", f"generated_audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+        sf.write(output_path, output, pipe.vae.sampling_rate)
+
+        return output_path, None
+
+    except Exception as e:
+        return None, str(e)
+
+    finally:
+        del pipe
+        flush()
+
+
 def close_terminal():
     os._exit(1)
 
@@ -2205,6 +2296,68 @@ sd_generate_interface = gr.Interface(
     submit_btn=_("Generate", lang)
 )
 
+audio_dataset_interface = gr.Interface(
+    fn=create_audio_dataset,
+    inputs=[
+        gr.Textbox(label=_("Dataset Name", lang)),
+        gr.File(label=_("Audio Files", lang), file_count="multiple")
+    ],
+    outputs=[
+        gr.Textbox(label=_("Status", lang))
+    ],
+    title=_("NeuroTrainerWebUI (ALPHA) - StableAudio-Dataset", lang),
+    description=_("Create a new dataset for Stable Audio", lang),
+    allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Create", lang)
+)
+
+audio_finetune_interface = gr.Interface(
+    fn=finetune_audio_model,
+    inputs=[
+        gr.Dropdown(choices=lambda: os.listdir(os.path.join("datasets", "audio")), label=_("Dataset Folder", lang)),
+        gr.Dropdown(choices=lambda: os.listdir(os.path.join("models", "audio")), label=_("Model Folder", lang)),
+        gr.Textbox(label=_("Output Model Name", lang))
+    ],
+    outputs=[
+        gr.Textbox(label=_("Finetuning Status", lang))
+    ],
+    title=_("NeuroTrainerWebUI (ALPHA) - StableAudio-Finetune", lang),
+    description=_("Finetune Stable Audio models on a custom dataset", lang),
+    allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Finetune", lang)
+)
+
+audio_generate_interface = gr.Interface(
+    fn=generate_audio,
+    inputs=[
+        gr.Dropdown(choices=lambda: os.listdir(os.path.join("finetuned-models", "audio")), label=_("Model Folder", lang)),
+        gr.Textbox(label=_("Prompt", lang)),
+        gr.Textbox(label=_("Negative Prompt", lang))
+    ],
+    additional_inputs=[
+        gr.Slider(minimum=1, maximum=1000, value=200, step=1, label=_("Inference Steps", lang)),
+        gr.Slider(minimum=0.1, maximum=30.0, value=8, step=0.1, label=_("Guidance Scale", lang)),
+        gr.Slider(minimum=0.0, maximum=59.0, value=0.0, step=0.1, label=_("Audio Start (s)", lang)),
+        gr.Slider(minimum=0.1, maximum=60.0, value=10.0, step=0.1, label=_("Audio End (s)", lang)),
+        gr.Slider(minimum=1, maximum=10, value=3, step=1, label=_("Num Waveforms per Prompt", lang))
+    ],
+    additional_inputs_accordion=gr.Accordion(label=_("StableAudio Settings", lang), open=False),
+    outputs=[
+        gr.Audio(label=_("Generated Audio", lang)),
+        gr.Textbox(label=_("Message", lang), type="text")
+    ],
+    title=_("NeuroTrainerWebUI (ALPHA) - StableAudio-Generate", lang),
+    description=_("Generate audio using finetuned Stable Audio models", lang),
+    allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Generate", lang)
+)
+
 wiki_interface = gr.Interface(
     fn=get_wiki_content,
     inputs=[
@@ -2329,10 +2482,12 @@ with gr.TabbedInterface([
                        tab_names=[_("Dataset", lang), _("Finetune", lang), _("Evaluate", lang), _("Quantize", lang), _("Generate", lang)]),
     gr.TabbedInterface([sd_dataset_interface, sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
                        tab_names=[_("Dataset", lang), _("Finetune", lang), _("Evaluate", lang), _("Conversion", lang), _("Generate", lang)]),
+    gr.TabbedInterface([audio_dataset_interface, audio_finetune_interface, audio_generate_interface],
+                       tab_names=[_("Dataset", lang), _("Finetune", lang), _("Generate", lang)]),
     gr.TabbedInterface([wiki_interface, model_downloader_interface, settings_interface, system_interface],
                        tab_names=[_("Wiki", lang), _("ModelDownloader", lang), _("Settings", lang), _("System", lang)])
 ],
-    tab_names=[_("LLM", lang), _("StableDiffusion", lang), _("Interface", lang)], theme=theme) as app:
+    tab_names=[_("LLM", lang), _("StableDiffusion", lang), _("StableAudio", lang), _("Interface", lang)], theme=theme) as app:
     sd_generate_interface.input_components[6].click(stop_generation, [], [], queue=False)
 
     reload_button = gr.Button(_("Reload interface", lang))

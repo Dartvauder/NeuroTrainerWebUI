@@ -1,6 +1,8 @@
 import logging
 import os
+import random
 import warnings
+import importlib
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 warnings.filterwarnings("ignore")
@@ -19,10 +21,7 @@ import xformers
 from git import Repo
 import requests
 import gradio as gr
-from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, Trainer, TrainingArguments
-from llama_cpp import Llama
 from peft import LoraConfig, get_peft_model, PeftModel
-from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline, DDPMScheduler
 from datasets import load_dataset
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,6 +52,54 @@ import subprocess
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 from mauve import compute_mauve
 from sklearn.metrics import accuracy_score, precision_score
+
+
+def lazy_import(module_name, fromlist):
+    module = None
+    def wrapper():
+        nonlocal module
+        if module is None:
+            if fromlist:
+                module = importlib.import_module(module_name, fromlist)
+            else:
+                module = importlib.import_module(module_name)
+        return module
+    return wrapper
+
+
+# Transformers import
+AutoModelForCausalLM = lazy_import('transformers', 'AutoModelForCausalLM')
+AutoTokenizer = lazy_import('transformers', 'AutoTokenizer')
+DataCollatorForLanguageModeling = lazy_import('transformers', 'DataCollatorForLanguageModeling')
+Trainer = lazy_import('transformers', 'Trainer')
+TrainerCallback = lazy_import('transformers', 'TrainerCallback')
+TrainingArguments = lazy_import('transformers', 'TrainingArguments')
+
+# Diffusers import
+StableDiffusionPipeline = lazy_import('diffusers', 'StableDiffusionPipeline')
+StableDiffusionXLPipeline = lazy_import('diffusers', 'StableDiffusionXLPipeline')
+AutoencoderKL = lazy_import('diffusers', 'AutoencoderKL')
+DPMSolverSinglestepScheduler = lazy_import('diffusers', 'DPMSolverSinglestepScheduler')
+DPMSolverMultistepScheduler = lazy_import('diffusers', 'DPMSolverMultistepScheduler')
+EDMDPMSolverMultistepScheduler = lazy_import('diffusers', 'EDMDPMSolverMultistepScheduler')
+EDMEulerScheduler = lazy_import('diffusers', 'EDMEulerScheduler')
+KDPM2DiscreteScheduler = lazy_import('diffusers', 'KDPM2DiscreteScheduler')
+KDPM2AncestralDiscreteScheduler = lazy_import('diffusers', 'KDPM2AncestralDiscreteScheduler')
+EulerDiscreteScheduler = lazy_import('diffusers', 'EulerDiscreteScheduler')
+EulerAncestralDiscreteScheduler = lazy_import('diffusers', 'EulerAncestralDiscreteScheduler')
+HeunDiscreteScheduler = lazy_import('diffusers', 'HeunDiscreteScheduler')
+LMSDiscreteScheduler = lazy_import('diffusers', 'LMSDiscreteScheduler')
+DEISMultistepScheduler = lazy_import('diffusers', 'DEISMultistepScheduler')
+UniPCMultistepScheduler = lazy_import('diffusers', 'UniPCMultistepScheduler')
+LCMScheduler = lazy_import('diffusers', 'LCMScheduler')
+DPMSolverSDEScheduler = lazy_import('diffusers', 'DPMSolverSDEScheduler')
+TCDScheduler = lazy_import('diffusers', 'TCDScheduler')
+DDIMScheduler = lazy_import('diffusers', 'DDIMScheduler')
+DDPMScheduler = lazy_import('diffusers', 'DDPMScheduler')
+DDIMInverseScheduler = lazy_import('diffusers', 'DDIMInverseScheduler')
+
+# Another imports
+Llama = lazy_import('llama_cpp', 'Llama')
 
 
 def print_system_info():
@@ -221,6 +268,19 @@ def get_available_sd_models():
     return sd_available_models
 
 
+def get_available_vae_sd_models():
+    models_dir = "finetuned-models/sd/vae"
+    os.makedirs(models_dir, exist_ok=True)
+
+    sd_available_models = []
+    for model_name in os.listdir(models_dir):
+        model_path = os.path.join(models_dir, model_name)
+        if os.path.isdir(model_path):
+            sd_available_models.append(model_name)
+
+    return sd_available_models
+
+
 def get_available_sd_lora_models():
     models_dir = "finetuned-models/sd/lora"
     os.makedirs(models_dir, exist_ok=True)
@@ -266,19 +326,38 @@ def reload_model_lists():
     finetuned_llm_models = get_available_finetuned_llm_models()
     llm_datasets = get_available_llm_datasets()
     sd_models = get_available_sd_models()
+    sd_vae_models = get_available_vae_sd_models()
     sd_lora_models = get_available_sd_lora_models()
     finetuned_sd_models = get_available_finetuned_sd_models()
     sd_datasets = get_available_sd_datasets()
 
     return [
         llm_models, llm_lora_models, finetuned_llm_models, llm_datasets,
-        sd_models, sd_lora_models, finetuned_sd_models, sd_datasets
+        sd_models, sd_vae_models, sd_lora_models, finetuned_sd_models, sd_datasets
     ]
 
 
 def reload_interface():
     updated_lists = reload_model_lists()[:8]
     return [gr.Dropdown(choices=list) for list in updated_lists]
+
+
+def get_memory_usage():
+    cpu_mem = psutil.virtual_memory().percent
+    gpu_mem = torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated() * 100 if torch.cuda.is_available() else 0
+    return cpu_mem, gpu_mem
+
+
+class MemoryMonitorCallback(TrainerCallback().TrainerCallback):
+    def __init__(self, print_every=1):
+        self.print_every = print_every
+
+    def on_step_end(self, args, state, control, **kwargs):
+        if state.global_step % self.print_every == 0:
+            cpu_mem, gpu_mem = get_memory_usage()
+            print(f"\nStep {state.global_step}:")
+            print(f"CPU Memory: {cpu_mem:.2f}%")
+            print(f"GPU Memory: {gpu_mem:.2f}%")
 
 
 def load_model_and_tokenizer(model_name, finetuned=False):
@@ -288,8 +367,8 @@ def load_model_and_tokenizer(model_name, finetuned=False):
         model_path = os.path.join("models/llm", model_name)
     try:
         device = "cuda"
-        model = AutoModelForCausalLM.from_pretrained(model_path, device_map=device)
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        model = AutoModelForCausalLM().AutoModelForCausalLM.from_pretrained(model_path, device_map=device)
+        tokenizer = AutoTokenizer().AutoTokenizer.from_pretrained(model_path)
         return model, tokenizer
     except Exception as e:
         print(f"Error loading model and tokenizer: {e}")
@@ -314,7 +393,9 @@ def create_llm_dataset(existing_file, file_name, instruction, input_text, output
 
 
 def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, epochs, batch_size, learning_rate,
-                 weight_decay, warmup_steps, block_size, grad_accum_steps, adam_beta1, adam_beta2, adam_epsilon, lr_scheduler_type, freeze_layers, lora_r, lora_alpha, lora_dropout, use_xformers=False):
+                 weight_decay, momentum, warmup_steps, grad_accum_steps, adam_beta1, adam_beta2, adam_epsilon,
+                 lr_scheduler_type, freeze_layers, lora_r, lora_alpha, lora_dropout, use_xformers,
+                 optimizer_type, gradient_clip_val, l1_reg, l2_reg, resume_from_checkpoint, max_seq_length):
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path.", None
@@ -340,112 +421,137 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
 
             texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
                      input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
-            return tokenizer(texts, truncation=True, padding='max_length', max_length=block_size)
+            return tokenizer(texts, truncation=True, padding='max_length', max_length=max_seq_length)
 
         train_dataset = train_dataset.map(process_examples, batched=True,
                                           remove_columns=['input', 'instruction', 'output'])
         train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
-    except Exception as e:
-        print(f"Error loading dataset: {e}")
-        return f"Error loading dataset. Please check the dataset path and format. Error: {e}", None
 
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
+        data_collator = DataCollatorForLanguageModeling().DataCollatorForLanguageModeling(tokenizer=tokenizer,
+                                                                                          mlm=False)
 
-    if finetune_method == "Full" or "Freeze":
-        save_dir = os.path.join("finetuned-models/llm/full", model_output_name)
-    elif finetune_method == "LORA":
-        save_dir = os.path.join("finetuned-models/llm/lora", model_output_name)
+        if finetune_method == "Full" or "Freeze":
+            save_dir = os.path.join("finetuned-models/llm/full", model_output_name)
+        elif finetune_method == "LORA":
+            save_dir = os.path.join("finetuned-models/llm/lora", model_output_name)
 
-    os.makedirs(save_dir, exist_ok=True)
+        os.makedirs(save_dir, exist_ok=True)
 
-    save_path = save_dir
+        save_path = save_dir
 
-    training_args = TrainingArguments(
-        output_dir=save_path,
-        overwrite_output_dir=True,
-        num_train_epochs=epochs,
-        per_device_train_batch_size=batch_size,
-        learning_rate=learning_rate,
-        weight_decay=weight_decay,
-        warmup_steps=warmup_steps,
-        gradient_accumulation_steps=grad_accum_steps,
-        save_steps=10_000,
-        save_total_limit=2,
-        logging_strategy='epoch',
-        adam_beta1=adam_beta1,
-        adam_beta2=adam_beta2,
-        adam_epsilon=adam_epsilon,
-        lr_scheduler_type=lr_scheduler_type
-    )
-
-    if use_xformers:
-        try:
-            import xformers.ops
-            model.enable_xformers_memory_efficient_attention()
-        except ImportError:
-            print("xformers not installed. Proceeding without memory-efficient attention.")
-
-    if finetune_method == "LORA":
-        config = LoraConfig(
-            r=lora_r,
-            lora_alpha=lora_alpha,
-            target_modules=["q_proj", "v_proj"],
-            lora_dropout=lora_dropout,
-            bias="none",
-            task_type="CAUSAL_LM"
+        training_args = TrainingArguments().TrainingArguments(
+            output_dir=save_path,
+            overwrite_output_dir=True,
+            num_train_epochs=epochs,
+            per_device_train_batch_size=batch_size,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            warmup_steps=warmup_steps,
+            gradient_accumulation_steps=grad_accum_steps,
+            save_steps=10_000,
+            save_total_limit=2,
+            logging_strategy='epoch',
+            adam_beta1=adam_beta1,
+            adam_beta2=adam_beta2,
+            adam_epsilon=adam_epsilon,
+            lr_scheduler_type=lr_scheduler_type,
+            max_grad_norm=gradient_clip_val,
+            resume_from_checkpoint=resume_from_checkpoint
         )
 
-        model = get_peft_model(model, config)
+        if optimizer_type == "AdamW":
+            optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        elif optimizer_type == "SGD":
+            optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+        else:
+            optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    if finetune_method == "Freeze":
-        num_freeze_layers = len(model.transformer.h) - freeze_layers
-        for i, layer in enumerate(model.transformer.h):
-            if i < num_freeze_layers:
-                for param in layer.parameters():
-                    param.requires_grad = False
+        if use_xformers:
+            try:
+                import xformers.ops
+                model.enable_xformers_memory_efficient_attention()
+            except ImportError:
+                print("xformers not installed. Proceeding without memory-efficient attention.")
 
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        data_collator=data_collator,
-        train_dataset=train_dataset,
-    )
+        if finetune_method == "LORA":
+            config = LoraConfig(
+                r=lora_r,
+                lora_alpha=lora_alpha,
+                target_modules=["q_proj", "v_proj"],
+                lora_dropout=lora_dropout,
+                bias="none",
+                task_type="CAUSAL_LM"
+            )
 
-    try:
-        trainer.train()
-        trainer.save_model()
-        tokenizer.save_pretrained(save_path)
-        print("Finetuning completed successfully.")
+            model = get_peft_model(model, config)
+
+        if finetune_method == "Freeze":
+            num_freeze_layers = len(model.transformer.h) - freeze_layers
+            for i, layer in enumerate(model.transformer.h):
+                if i < num_freeze_layers:
+                    for param in layer.parameters():
+                        param.requires_grad = False
+
+        if l1_reg > 0 or l2_reg > 0:
+            for param in model.parameters():
+                if param.requires_grad:
+                    if l1_reg > 0:
+                        training_args.weight_decay += l1_reg * torch.norm(param, p=1)
+                    if l2_reg > 0:
+                        training_args.weight_decay += l2_reg * torch.norm(param, p=2)
+
+        trainer = Trainer().Trainer(
+            model=model,
+            args=training_args,
+            data_collator=data_collator,
+            train_dataset=train_dataset,
+            optimizers=(optimizer, None),
+            callbacks=[MemoryMonitorCallback(print_every=1)]
+        )
+
+        try:
+            trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+            trainer.save_model()
+            tokenizer.save_pretrained(save_path)
+            print("Finetuning completed successfully.")
+        except Exception as e:
+            print(f"Error during Finetuning: {e}")
+            return f"Finetuning failed. Error: {e}", None
+
+        loss_values = [log['loss'] for log in trainer.state.log_history if 'loss' in log]
+        epochs = [log['epoch'] for log in trainer.state.log_history if 'epoch' in log]
+
+        epochs = epochs[:len(loss_values)]
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(epochs, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+        ax.set_ylabel('Loss')
+        ax.set_xlabel('Epoch')
+        ax.set_title('Training Loss')
+
+        if loss_values:
+            ax.set_ylim(bottom=min(loss_values) - 0.01, top=max(loss_values) + 0.01)
+            ax.set_xticks(epochs)
+            ax.set_xticklabels([int(epoch) for epoch in epochs])
+        else:
+            print("No loss values found in trainer.state.log_history")
+
+        ax.grid(True)
+
+        plot_dir = save_dir
+        os.makedirs(plot_dir, exist_ok=True)
+        plot_path = os.path.join(save_dir, f"{model_output_name}_loss_plot.png")
+        plt.tight_layout()
+        plt.savefig(plot_path)
+        plt.close()
+
     except Exception as e:
-        print(f"Error during Finetuning: {e}")
-        return f"Finetuning failed. Error: {e}", None
-
-    loss_values = [log['loss'] for log in trainer.state.log_history if 'loss' in log]
-    epochs = [log['epoch'] for log in trainer.state.log_history if 'epoch' in log]
-
-    epochs = epochs[:len(loss_values)]
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(epochs, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
-    ax.set_ylabel('Loss')
-    ax.set_xlabel('Epoch')
-    ax.set_title('Training Loss')
-
-    if loss_values:
-        ax.set_ylim(bottom=min(loss_values) - 0.01, top=max(loss_values) + 0.01)
-        ax.set_xticks(epochs)
-        ax.set_xticklabels([int(epoch) for epoch in epochs])
-    else:
-        print("No loss values found in trainer.state.log_history")
-
-    ax.grid(True)
-
-    plot_dir = save_dir
-    os.makedirs(plot_dir, exist_ok=True)
-    plot_path = os.path.join(save_dir, f"{model_output_name}_loss_plot.png")
-    plt.tight_layout()
-    plt.savefig(plot_path)
-    plt.close()
+        return None, str(e)
+    finally:
+        del model
+        del tokenizer
+        del trainer
+        flush()
 
     return f"Finetuning completed. Model saved at: {save_path}", fig
 
@@ -497,94 +603,104 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
 
     dataset_path = os.path.join("datasets/llm", dataset_file)
     try:
-        eval_dataset = load_dataset('json', data_files=dataset_path)
-        eval_dataset = eval_dataset['train']
+        try:
+            eval_dataset = load_dataset('json', data_files=dataset_path)
+            eval_dataset = eval_dataset['train']
 
-        def process_examples(examples):
-            input_texts = examples['input'] if 'input' in examples else [''] * len(examples['instruction'])
-            instruction_texts = examples['instruction']
-            output_texts = examples['output']
+            def process_examples(examples):
+                input_texts = examples['input'] if 'input' in examples else [''] * len(examples['instruction'])
+                instruction_texts = examples['instruction']
+                output_texts = examples['output']
 
-            texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
-                     input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
-            return {'input_ids': tokenizer(texts, truncation=True, padding='max_length', max_length=128)['input_ids'],
+                texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
+                         input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
+                return {
+                    'input_ids': tokenizer(texts, truncation=True, padding='max_length', max_length=128)['input_ids'],
                     'attention_mask': tokenizer(texts, truncation=True, padding='max_length', max_length=128)[
                         'attention_mask'],
                     'labels': output_texts}
 
-        eval_dataset = eval_dataset.map(process_examples, batched=True,
-                                        remove_columns=['input', 'instruction', 'output'])
-        eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
+            eval_dataset = eval_dataset.map(process_examples, batched=True,
+                                            remove_columns=['input', 'instruction', 'output'])
+            eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
+        except Exception as e:
+            print(f"Error loading dataset: {e}")
+            return f"Error loading dataset. Please check the dataset path and format. Error: {e}", None
+
+        try:
+            references = eval_dataset['labels']
+            predictions = [generate_text(model_name, lora_model_name, "transformers",
+                                         user_input if user_input else tokenizer.decode(example['input_ids'],
+                                                                                        skip_special_tokens=True),
+                                         max_length, temperature, top_p, top_k, output_format='txt')[0] for example in
+                           eval_dataset]
+
+            bert_model_name = "google-bert/bert-base-uncased"
+            bert_repo_url = f"https://huggingface.co/{bert_model_name}"
+            bert_repo_dir = os.path.join("trainer-scripts", bert_model_name)
+
+            if not os.path.exists(bert_repo_dir):
+                Repo.clone_from(bert_repo_url, bert_repo_dir)
+
+            predictions = [pred.strip() for pred in predictions if pred.strip()]
+            references = [ref.strip() for ref in references if ref.strip()]
+
+            bleu_score = sacrebleu.corpus_bleu(predictions, [references]).score
+
+            P, R, F1 = score(predictions, references, lang='en', model_type=bert_model_name, num_layers=12)
+            bert_score = F1.mean().item()
+
+            rouge = Rouge()
+            rouge_scores = rouge.get_scores(predictions, references, avg=True)
+
+            max_length = max(len(tokenizer.encode(ref)) for ref in references)
+
+            tokenized_references = tokenizer(references, return_tensors='pt', padding=True, truncation=True,
+                                             max_length=max_length)
+            tokenized_predictions = tokenizer(predictions, return_tensors='pt', padding=True, truncation=True,
+                                              max_length=max_length)
+
+            mauve_result = compute_mauve(tokenized_predictions.input_ids, tokenized_references.input_ids)
+            mauve_score = mauve_result.mauve
+
+            binary_predictions = [1 if pred else 0 for pred in predictions]
+            binary_references = [1 if ref else 0 for ref in references]
+            accuracy = accuracy_score(binary_references, binary_predictions)
+            precision = precision_score(binary_references, binary_predictions)
+
+            chrf_metric = CHRFScore()
+            for reference, prediction in zip(references, predictions):
+                chrf_metric.update(prediction, reference)
+            chrf_score = chrf_metric.compute().item()
+
+            extracted_metrics = {
+                'bleu': bleu_score,
+                'bert': bert_score,
+                'rouge-1': rouge_scores['rouge-1']['f'],
+                'rouge-2': rouge_scores['rouge-2']['f'],
+                'rouge-l': rouge_scores['rouge-l']['f'],
+                'mauve': mauve_score,
+                'accuracy': accuracy,
+                'precision': precision,
+                'chrf': chrf_score
+            }
+
+            fig = plot_llm_evaluation_metrics(extracted_metrics)
+
+            plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
+            fig.savefig(plot_path)
+
+            return f"Evaluation completed successfully. Results saved to {plot_path}", fig
+        except Exception as e:
+            print(f"Error during evaluation: {e}")
+            return f"Evaluation failed. Error: {e}", None
+
     except Exception as e:
-        print(f"Error loading dataset: {e}")
-        return f"Error loading dataset. Please check the dataset path and format. Error: {e}", None
-
-    try:
-        references = eval_dataset['labels']
-        predictions = [generate_text(model_name, lora_model_name, "transformers",
-                                     user_input if user_input else tokenizer.decode(example['input_ids'],
-                                                                                    skip_special_tokens=True),
-                                     max_length, temperature, top_p, top_k, output_format='txt')[0] for example in eval_dataset]
-
-        bert_model_name = "google-bert/bert-base-uncased"
-        bert_repo_url = f"https://huggingface.co/{bert_model_name}"
-        bert_repo_dir = os.path.join("trainer-scripts", bert_model_name)
-
-        if not os.path.exists(bert_repo_dir):
-            Repo.clone_from(bert_repo_url, bert_repo_dir)
-
-        predictions = [pred.strip() for pred in predictions if pred.strip()]
-        references = [ref.strip() for ref in references if ref.strip()]
-
-        bleu_score = sacrebleu.corpus_bleu(predictions, [references]).score
-
-        P, R, F1 = score(predictions, references, lang='en', model_type=bert_model_name, num_layers=12)
-        bert_score = F1.mean().item()
-
-        rouge = Rouge()
-        rouge_scores = rouge.get_scores(predictions, references, avg=True)
-
-        max_length = max(len(tokenizer.encode(ref)) for ref in references)
-
-        tokenized_references = tokenizer(references, return_tensors='pt', padding=True, truncation=True,
-                                         max_length=max_length)
-        tokenized_predictions = tokenizer(predictions, return_tensors='pt', padding=True, truncation=True,
-                                          max_length=max_length)
-
-        mauve_result = compute_mauve(tokenized_predictions.input_ids, tokenized_references.input_ids)
-        mauve_score = mauve_result.mauve
-
-        binary_predictions = [1 if pred else 0 for pred in predictions]
-        binary_references = [1 if ref else 0 for ref in references]
-        accuracy = accuracy_score(binary_references, binary_predictions)
-        precision = precision_score(binary_references, binary_predictions)
-
-        chrf_metric = CHRFScore()
-        for reference, prediction in zip(references, predictions):
-            chrf_metric.update(prediction, reference)
-        chrf_score = chrf_metric.compute().item()
-
-        extracted_metrics = {
-            'bleu': bleu_score,
-            'bert': bert_score,
-            'rouge-1': rouge_scores['rouge-1']['f'],
-            'rouge-2': rouge_scores['rouge-2']['f'],
-            'rouge-l': rouge_scores['rouge-l']['f'],
-            'mauve': mauve_score,
-            'accuracy': accuracy,
-            'precision': precision,
-            'chrf': chrf_score
-        }
-
-        fig = plot_llm_evaluation_metrics(extracted_metrics)
-
-        plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
-        fig.savefig(plot_path)
-
-        return f"Evaluation completed successfully. Results saved to {plot_path}", fig
-    except Exception as e:
-        print(f"Error during evaluation: {e}")
-        return f"Evaluation failed. Error: {e}", None
+        return None, str(e)
+    finally:
+        del model
+        del tokenizer
+        flush()
 
 
 def quantize_llm(model_name, quantization_type):
@@ -616,101 +732,115 @@ def quantize_llm(model_name, quantization_type):
 
     except subprocess.CalledProcessError as e:
         return f"Error during quantization: {e}"
+    except Exception as e:
+        return None, str(e)
     finally:
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
+        flush()
 
 
-def generate_text(model_name, lora_model_name, model_type, prompt, max_length, temperature, top_p, top_k, output_format):
-    if model_type == "transformers":
-        model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
-        if model is None or tokenizer is None:
-            return None, "Error loading model and tokenizer. Please check the model path."
+def generate_text(model_name, lora_model_name, model_type, prompt, max_tokens, temperature, top_p, top_k, output_format):
+    try:
+        if model_type == "transformers":
+            model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
+            if model is None or tokenizer is None:
+                return None, "Error loading model and tokenizer. Please check the model path."
 
-        if not model_name:
-            return None, "Please select the model"
+            if not model_name:
+                return None, "Please select the model"
 
-        if lora_model_name and not model_name:
-            return None, "Please select the original model"
+            if lora_model_name and not model_name:
+                return None, "Please select the original model"
 
-        if lora_model_name:
-            lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
-            model = PeftModel.from_pretrained(model, lora_model_path)
+            if lora_model_name:
+                lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
+                model = PeftModel.from_pretrained(model, lora_model_path)
 
-        try:
-            input_ids = tokenizer.encode(prompt, return_tensors='pt')
-            attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
-            pad_token_id = tokenizer.eos_token_id
+            try:
+                input_ids = tokenizer.encode(prompt, return_tensors='pt')
+                attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
+                pad_token_id = tokenizer.eos_token_id
 
-            input_ids = input_ids.to(model.device)
-            attention_mask = attention_mask.to(model.device)
+                input_ids = input_ids.to(model.device)
+                attention_mask = attention_mask.to(model.device)
 
-            output = model.generate(
-                input_ids,
-                do_sample=True,
-                attention_mask=attention_mask,
-                pad_token_id=pad_token_id,
-                max_new_tokens=max_length,
-                num_return_sequences=1,
-                top_p=top_p,
-                top_k=top_k,
-                temperature=temperature,
-                repetition_penalty=1.1,
-                num_beams=5,
-                no_repeat_ngram_size=2,
-            )
+                output = model.generate(
+                    input_ids,
+                    do_sample=True,
+                    attention_mask=attention_mask,
+                    pad_token_id=pad_token_id,
+                    max_new_tokens=max_tokens,
+                    num_return_sequences=1,
+                    top_p=top_p,
+                    top_k=top_k,
+                    temperature=temperature,
+                    repetition_penalty=1.1,
+                    num_beams=5,
+                    no_repeat_ngram_size=2,
+                )
 
-            generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+                generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
 
-            output_dir = "outputs/llm"
-            os.makedirs(output_dir, exist_ok=True)
+                output_dir = "outputs/llm"
+                os.makedirs(output_dir, exist_ok=True)
 
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            output_file = f"llm_history_{timestamp}.{output_format}"
-            output_path = os.path.join(output_dir, output_file)
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                output_file = f"llm_history_{timestamp}.{output_format}"
+                output_path = os.path.join(output_dir, output_file)
 
-            if output_format == "txt":
-                with open(output_path, "a", encoding="utf-8") as file:
-                    file.write(f"Human: {prompt}\nAI: {generated_text}\n")
-            elif output_format == "json":
-                history = [{"Human": prompt, "AI": generated_text}]
-                with open(output_path, "w", encoding="utf-8") as file:
-                    json.dump(history, file, indent=2, ensure_ascii=False)
+                if output_format == "txt":
+                    with open(output_path, "a", encoding="utf-8") as file:
+                        file.write(f"Human: {prompt}\nAI: {generated_text}\n")
+                elif output_format == "json":
+                    history = [{"Human": prompt, "AI": generated_text}]
+                    with open(output_path, "w", encoding="utf-8") as file:
+                        json.dump(history, file, indent=2, ensure_ascii=False)
 
-            return generated_text, "Text generation successful"
-        except Exception as e:
-            print(f"Error during text generation: {e}")
-            return None, f"Text generation failed. Error: {e}"
+                return generated_text, "Text generation successful"
+            except Exception as e:
+                print(f"Error during text generation: {e}")
+                return None, f"Text generation failed. Error: {e}"
 
-    elif model_type == "llama.cpp":
-        model_path = os.path.join("finetuned-models/llm/full", model_name)
+        elif model_type == "llama.cpp":
+            model_path = os.path.join("finetuned-models/llm/full", model_name)
 
-        try:
+            try:
 
-            llm = Llama(model_path=model_path, n_ctx=max_length, n_parts=-1, seed=-1, f16_kv=True, logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1, suffix=None)
+                llm = Llama().Llama(model_path=model_path, n_ctx=max_tokens, n_parts=-1, seed=-1, f16_kv=True,
+                                    logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1,
+                                    suffix=None)
 
-            output = llm(prompt, max_tokens=max_length, top_k=top_k, top_p=top_p, temperature=temperature, stop=None, echo=False)
+                output = llm(prompt, max_tokens=max_tokens, top_k=top_k, top_p=top_p, temperature=temperature,
+                             stop=None, echo=False)
 
-            generated_text = output['choices'][0]['text']
+                generated_text = output['choices'][0]['text']
 
-            output_dir = "outputs/llm"
-            os.makedirs(output_dir, exist_ok=True)
+                output_dir = "outputs/llm"
+                os.makedirs(output_dir, exist_ok=True)
 
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            output_file = f"llm_history_{timestamp}.{output_format}"
-            output_path = os.path.join(output_dir, output_file)
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                output_file = f"llm_history_{timestamp}.{output_format}"
+                output_path = os.path.join(output_dir, output_file)
 
-            if output_format == "txt":
-                with open(output_path, "a", encoding="utf-8") as file:
-                    file.write(f"Human: {prompt}\nAI: {generated_text}\n")
-            elif output_format == "json":
-                history = [{"Human": prompt, "AI": generated_text}]
-                with open(output_path, "w", encoding="utf-8") as file:
-                    json.dump(history, file, indent=2, ensure_ascii=False)
+                if output_format == "txt":
+                    with open(output_path, "a", encoding="utf-8") as file:
+                        file.write(f"Human: {prompt}\nAI: {generated_text}\n")
+                elif output_format == "json":
+                    history = [{"Human": prompt, "AI": generated_text}]
+                    with open(output_path, "w", encoding="utf-8") as file:
+                        json.dump(history, file, indent=2, ensure_ascii=False)
 
-            return generated_text, "Text generation successful"
-        except Exception as e:
-            print(f"Error during text generation: {e}")
-            return None, f"Text generation failed. Error: {e}"
+                return generated_text, "Text generation successful"
+            except Exception as e:
+                print(f"Error during text generation: {e}")
+                return None, f"Text generation failed. Error: {e}"
+
+    except Exception as e:
+        return None, str(e)
+    finally:
+        del model
+        del tokenizer
+        flush()
 
 
 def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, prompt_text):
@@ -754,172 +884,178 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
     if not model_output_name:
         return "Please write the model name", None
 
-    if finetune_method == "Full":
-        output_dir = os.path.join("finetuned-models/sd/full", model_output_name)
-        if model_type == "SD":
-            dataset = load_dataset("imagefolder", data_dir=dataset_path)
-            args = [
-                "accelerate", "launch", "trainer-scripts/sd/train_text_to_image.py",
-                f"--pretrained_model_name_or_path={model_path}",
-                f"--train_data_dir={dataset_path}",
-                f"--output_dir={output_dir}",
-                f"--resolution={resolution}",
-                f"--train_batch_size={train_batch_size}",
-                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                f"--learning_rate={learning_rate}",
-                f"--lr_scheduler={lr_scheduler}",
-                f"--lr_warmup_steps={lr_warmup_steps}",
-                f"--max_train_steps={max_train_steps}",
-                f"--adam_beta1={adam_beta1}",
-                f"--adam_beta2={adam_beta2}",
-                f"--adam_weight_decay={adam_weight_decay}",
-                f"--adam_epsilon={adam_epsilon}",
-                f"--max_grad_norm={max_grad_norm}",
-                f"--noise_offset={noise_offset}",
-                f"--caption_column=text",
-                f"--mixed_precision=no",
-                f"--seed=0"
-            ]
-            if enable_xformers:
-                args.append("--enable_xformers_memory_efficient_attention")
-        elif model_type == "SDXL":
-            dataset = load_dataset("imagefolder", data_dir=dataset_path)
-            args = [
-                "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_sdxl.py",
-                f"--pretrained_model_name_or_path={model_path}",
-                f"--train_data_dir={dataset_path}",
-                f"--output_dir={output_dir}",
-                f"--resolution={resolution}",
-                f"--train_batch_size={train_batch_size}",
-                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                f"--learning_rate={learning_rate}",
-                f"--lr_scheduler={lr_scheduler}",
-                f"--lr_warmup_steps={lr_warmup_steps}",
-                f"--max_train_steps={max_train_steps}",
-                f"--adam_beta1={adam_beta1}",
-                f"--adam_beta2={adam_beta2}",
-                f"--adam_weight_decay={adam_weight_decay}",
-                f"--adam_epsilon={adam_epsilon}",
-                f"--max_grad_norm={max_grad_norm}",
-                f"--noise_offset={noise_offset}",
-                f"--caption_column=text",
-                f"--mixed_precision=no",
-                f"--seed=0"
-            ]
-            if enable_xformers:
-                args.append("--enable_xformers_memory_efficient_attention")
-    elif finetune_method == "LORA":
-        output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
-        if model_type == "SD":
-            dataset = load_dataset("imagefolder", data_dir=dataset_path)
-            args = [
-                "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora.py",
-                f"--pretrained_model_name_or_path={model_path}",
-                f"--train_data_dir={dataset_path}",
-                f"--output_dir={output_dir}",
-                f"--resolution={resolution}",
-                f"--train_batch_size={train_batch_size}",
-                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                f"--learning_rate={learning_rate}",
-                f"--lr_scheduler={lr_scheduler}",
-                f"--lr_warmup_steps={lr_warmup_steps}",
-                f"--max_train_steps={max_train_steps}",
-                f"--adam_beta1={adam_beta1}",
-                f"--adam_beta2={adam_beta2}",
-                f"--adam_weight_decay={adam_weight_decay}",
-                f"--adam_epsilon={adam_epsilon}",
-                f"--max_grad_norm={max_grad_norm}",
-                f"--noise_offset={noise_offset}",
-                f"--rank={rank}",
-                f"--caption_column=text",
-                f"--mixed_precision=no",
-                f"--seed=0"
-            ]
-            if enable_xformers:
-                args.append("--enable_xformers_memory_efficient_attention")
-        elif model_type == "SDXL":
-            dataset = load_dataset("imagefolder", data_dir=dataset_path)
-            args = [
-                "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora_sdxl.py",
-                f"--pretrained_model_name_or_path={model_path}",
-                f"--train_data_dir={dataset_path}",
-                f"--output_dir={output_dir}",
-                f"--resolution={resolution}",
-                f"--train_batch_size={train_batch_size}",
-                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                f"--learning_rate={learning_rate}",
-                f"--lr_scheduler={lr_scheduler}",
-                f"--lr_warmup_steps={lr_warmup_steps}",
-                f"--max_train_steps={max_train_steps}",
-                f"--adam_beta1={adam_beta1}",
-                f"--adam_beta2={adam_beta2}",
-                f"--adam_weight_decay={adam_weight_decay}",
-                f"--adam_epsilon={adam_epsilon}",
-                f"--max_grad_norm={max_grad_norm}",
-                f"--noise_offset={noise_offset}",
-                f"--rank={rank}",
-                f"--caption_column=text",
-                f"--mixed_precision=no",
-                f"--seed=0"
-            ]
-            if enable_xformers:
-                args.append("--enable_xformers_memory_efficient_attention")
-    else:
-        raise ValueError(f"Invalid finetune method: {finetune_method}")
+    try:
+        if finetune_method == "Full":
+            output_dir = os.path.join("finetuned-models/sd/full", model_output_name)
+            if model_type == "SD":
+                dataset = load_dataset("imagefolder", data_dir=dataset_path)
+                args = [
+                    "accelerate", "launch", "trainer-scripts/sd/train_text_to_image.py",
+                    f"--pretrained_model_name_or_path={model_path}",
+                    f"--train_data_dir={dataset_path}",
+                    f"--output_dir={output_dir}",
+                    f"--resolution={resolution}",
+                    f"--train_batch_size={train_batch_size}",
+                    f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                    f"--learning_rate={learning_rate}",
+                    f"--lr_scheduler={lr_scheduler}",
+                    f"--lr_warmup_steps={lr_warmup_steps}",
+                    f"--max_train_steps={max_train_steps}",
+                    f"--adam_beta1={adam_beta1}",
+                    f"--adam_beta2={adam_beta2}",
+                    f"--adam_weight_decay={adam_weight_decay}",
+                    f"--adam_epsilon={adam_epsilon}",
+                    f"--max_grad_norm={max_grad_norm}",
+                    f"--noise_offset={noise_offset}",
+                    f"--caption_column=text",
+                    f"--mixed_precision=no",
+                    f"--seed=0"
+                ]
+                if enable_xformers:
+                    args.append("--enable_xformers_memory_efficient_attention")
+            elif model_type == "SDXL":
+                dataset = load_dataset("imagefolder", data_dir=dataset_path)
+                args = [
+                    "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_sdxl.py",
+                    f"--pretrained_model_name_or_path={model_path}",
+                    f"--train_data_dir={dataset_path}",
+                    f"--output_dir={output_dir}",
+                    f"--resolution={resolution}",
+                    f"--train_batch_size={train_batch_size}",
+                    f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                    f"--learning_rate={learning_rate}",
+                    f"--lr_scheduler={lr_scheduler}",
+                    f"--lr_warmup_steps={lr_warmup_steps}",
+                    f"--max_train_steps={max_train_steps}",
+                    f"--adam_beta1={adam_beta1}",
+                    f"--adam_beta2={adam_beta2}",
+                    f"--adam_weight_decay={adam_weight_decay}",
+                    f"--adam_epsilon={adam_epsilon}",
+                    f"--max_grad_norm={max_grad_norm}",
+                    f"--noise_offset={noise_offset}",
+                    f"--caption_column=text",
+                    f"--mixed_precision=no",
+                    f"--seed=0"
+                ]
+                if enable_xformers:
+                    args.append("--enable_xformers_memory_efficient_attention")
+        elif finetune_method == "LORA":
+            output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
+            if model_type == "SD":
+                dataset = load_dataset("imagefolder", data_dir=dataset_path)
+                args = [
+                    "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora.py",
+                    f"--pretrained_model_name_or_path={model_path}",
+                    f"--train_data_dir={dataset_path}",
+                    f"--output_dir={output_dir}",
+                    f"--resolution={resolution}",
+                    f"--train_batch_size={train_batch_size}",
+                    f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                    f"--learning_rate={learning_rate}",
+                    f"--lr_scheduler={lr_scheduler}",
+                    f"--lr_warmup_steps={lr_warmup_steps}",
+                    f"--max_train_steps={max_train_steps}",
+                    f"--adam_beta1={adam_beta1}",
+                    f"--adam_beta2={adam_beta2}",
+                    f"--adam_weight_decay={adam_weight_decay}",
+                    f"--adam_epsilon={adam_epsilon}",
+                    f"--max_grad_norm={max_grad_norm}",
+                    f"--noise_offset={noise_offset}",
+                    f"--rank={rank}",
+                    f"--caption_column=text",
+                    f"--mixed_precision=no",
+                    f"--seed=0"
+                ]
+                if enable_xformers:
+                    args.append("--enable_xformers_memory_efficient_attention")
+            elif model_type == "SDXL":
+                dataset = load_dataset("imagefolder", data_dir=dataset_path)
+                args = [
+                    "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora_sdxl.py",
+                    f"--pretrained_model_name_or_path={model_path}",
+                    f"--train_data_dir={dataset_path}",
+                    f"--output_dir={output_dir}",
+                    f"--resolution={resolution}",
+                    f"--train_batch_size={train_batch_size}",
+                    f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                    f"--learning_rate={learning_rate}",
+                    f"--lr_scheduler={lr_scheduler}",
+                    f"--lr_warmup_steps={lr_warmup_steps}",
+                    f"--max_train_steps={max_train_steps}",
+                    f"--adam_beta1={adam_beta1}",
+                    f"--adam_beta2={adam_beta2}",
+                    f"--adam_weight_decay={adam_weight_decay}",
+                    f"--adam_epsilon={adam_epsilon}",
+                    f"--max_grad_norm={max_grad_norm}",
+                    f"--noise_offset={noise_offset}",
+                    f"--rank={rank}",
+                    f"--caption_column=text",
+                    f"--mixed_precision=no",
+                    f"--seed=0"
+                ]
+                if enable_xformers:
+                    args.append("--enable_xformers_memory_efficient_attention")
+        else:
+            raise ValueError(f"Invalid finetune method: {finetune_method}")
 
-    subprocess.run(args)
+        subprocess.run(args)
 
-    if finetune_method == "Full":
-        logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
-        events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
-        latest_event_file = sorted(events_files)[-1]
-        event_file_path = os.path.join(logs_dir, latest_event_file)
+        if finetune_method == "Full":
+            logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
+            events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
+            latest_event_file = sorted(events_files)[-1]
+            event_file_path = os.path.join(logs_dir, latest_event_file)
 
-        event_acc = EventAccumulator(event_file_path)
-        event_acc.Reload()
+            event_acc = EventAccumulator(event_file_path)
+            event_acc.Reload()
 
-        loss_values = [s.value for s in event_acc.Scalars("train_loss")]
-        steps = [s.step for s in event_acc.Scalars("train_loss")]
+            loss_values = [s.value for s in event_acc.Scalars("train_loss")]
+            steps = [s.step for s in event_acc.Scalars("train_loss")]
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
-        ax.set_ylabel('Loss')
-        ax.set_xlabel('Step')
-        ax.set_title('Training Loss')
-        ax.grid(True)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+            ax.set_ylabel('Loss')
+            ax.set_xlabel('Step')
+            ax.set_title('Training Loss')
+            ax.grid(True)
 
-        plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
-        plt.tight_layout()
-        plt.savefig(plot_path)
-        plt.close()
+            plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
+            plt.tight_layout()
+            plt.savefig(plot_path)
+            plt.close()
 
-        return f"Fine-tuning completed. Model saved at: {output_dir}", fig
+            return f"Fine-tuning completed. Model saved at: {output_dir}", fig
 
-    elif finetune_method == "LORA":
-        logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
-        events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
-        latest_event_file = sorted(events_files)[-1]
-        event_file_path = os.path.join(logs_dir, latest_event_file)
+        elif finetune_method == "LORA":
+            logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
+            events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
+            latest_event_file = sorted(events_files)[-1]
+            event_file_path = os.path.join(logs_dir, latest_event_file)
 
-        event_acc = EventAccumulator(event_file_path)
-        event_acc.Reload()
+            event_acc = EventAccumulator(event_file_path)
+            event_acc.Reload()
 
-        loss_values = [s.value for s in event_acc.Scalars("train_loss")]
-        steps = [s.step for s in event_acc.Scalars("train_loss")]
+            loss_values = [s.value for s in event_acc.Scalars("train_loss")]
+            steps = [s.step for s in event_acc.Scalars("train_loss")]
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
-        ax.set_ylabel('Loss')
-        ax.set_xlabel('Step')
-        ax.set_title('Training Loss')
-        ax.grid(True)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+            ax.set_ylabel('Loss')
+            ax.set_xlabel('Step')
+            ax.set_title('Training Loss')
+            ax.grid(True)
 
-        plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
-        plt.tight_layout()
-        plt.savefig(plot_path)
-        plt.close()
+            plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
+            plt.tight_layout()
+            plt.savefig(plot_path)
+            plt.close()
 
-        return f"Finetuning completed. Model saved at: {output_dir}", fig
+            return f"Finetuning completed. Model saved at: {output_dir}", fig
+
+    except Exception as e:
+        return None, str(e)
+    finally:
+        flush()
 
 
 def plot_sd_evaluation_metrics(metrics):
@@ -945,232 +1081,481 @@ def plot_sd_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_sd(model_name, lora_model_name, dataset_name, model_method, model_type, user_prompt, negative_prompt, num_inference_steps, cfg_scale):
-    if model_method == "Diffusers":
-        if model_type == "SD":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16,
-                                                            safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
-        elif model_type == "SDXL":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline.from_pretrained(model_path, torch_dtype=torch.float16, attention_slice=1,
-                                                              safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
-    elif model_method == "Safetensors":
-        if model_type == "SD":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16,
-                                                             safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
-        elif model_type == "SDXL":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline.from_single_file(model_path, torch_dtype=torch.float16, attention_slice=1,
-                                                               safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
-    else:
-        return "Invalid model type selected", None
+def evaluate_sd(model_name, model_scheduler, vae_model_name, lora_model_names, lora_scales, dataset_name, model_method, model_type, user_prompt, negative_prompt, num_inference_steps, cfg_scale):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    if not model_name:
-        return "Please select the model", None
+    try:
+        if model_method == "Diffusers":
+            if model_type == "SD":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionPipeline().StableDiffusionPipeline.from_pretrained(model_path,
+                                                                                          torch_dtype=torch.float16,
+                                                                                          safety_checker=None).to(
+                    device)
+            elif model_type == "SDXL":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_pretrained(model_path,
+                                                                                              torch_dtype=torch.float16,
+                                                                                              attention_slice=1,
+                                                                                              safety_checker=None).to(
+                    device)
+        elif model_method == "Safetensors":
+            if model_type == "SD":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionPipeline().StableDiffusionPipeline.from_single_file(model_path,
+                                                                                           torch_dtype=torch.float16,
+                                                                                           safety_checker=None).to(
+                    device)
+            elif model_type == "SDXL":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_single_file(model_path,
+                                                                                               torch_dtype=torch.float16,
+                                                                                               attention_slice=1,
+                                                                                               safety_checker=None).to(
+                    device)
+        else:
+            return "Invalid model type selected", None
 
-    if not dataset_name:
-        return "Please select the dataset", None
+        if not model_name:
+            return "Please select the model", None
 
-    if lora_model_name and not model_name:
-        return "Please select the original model", None
+        if not dataset_name:
+            return "Please select the dataset", None
 
-    if lora_model_name:
-        lora_model_path = os.path.join("finetuned-models/sd/lora", lora_model_name)
-        model.unet.load_attn_procs(lora_model_path)
+        if lora_model_names and not model_name:
+            return "Please select the original model", None
 
-    dataset_path = os.path.join("datasets/sd", dataset_name)
-    dataset = load_dataset("imagefolder", data_dir=dataset_path)
+        if vae_model_name is not None:
+            vae_model_path = os.path.join("inputs", "image", "sd_models", "vae", f"{vae_model_name}.safetensors")
+            if os.path.exists(vae_model_path):
+                vae = AutoencoderKL().AutoencoderKL.from_single_file(vae_model_path, device_map="auto",
+                                                                     torch_dtype=torch.float16,
+                                                                     variant="fp16")
+                model.vae = vae.to(device)
 
-    num_samples = len(dataset["train"])
-    subset_size = min(num_samples, 50)
+        if isinstance(lora_scales, str):
+            lora_scales = [float(scale.strip()) for scale in lora_scales.split(',') if scale.strip()]
+        elif isinstance(lora_scales, (int, float)):
+            lora_scales = [float(lora_scales)]
 
-    fid = FrechetInceptionDistance().to("cuda")
-    kid = KernelInceptionDistance(subset_size=subset_size).to("cuda")
-    inception = InceptionScore().to("cuda")
-    vif = VisualInformationFidelity().to("cuda")
-    lpips = LearnedPerceptualImagePatchSimilarity().to("cuda")
-    scc = SpatialCorrelationCoefficient().to("cuda")
-    sdi = SpectralDistortionIndex().to("cuda")
-    sam = SpectralAngleMapper().to("cuda")
-    ssim = StructuralSimilarityIndexMeasure().to("cuda")
+        lora_loaded = False
+        if lora_model_names and lora_scales:
+            if len(lora_model_names) != len(lora_scales):
+                print(
+                    f"Warning: Number of LoRA models ({len(lora_model_names)}) does not match number of scales ({len(lora_scales)}). Using available scales.")
 
-    clip_model_name = "openai/clip-vit-base-patch16"
-    clip_repo_url = f"https://huggingface.co/{clip_model_name}"
-    clip_repo_dir = os.path.join("trainer-scripts", clip_model_name)
+            for i, lora_model_name in enumerate(lora_model_names):
+                if i < len(lora_scales):
+                    lora_scale = lora_scales[i]
+                else:
+                    lora_scale = 1.0
 
-    if not os.path.exists(clip_repo_dir):
-        Repo.clone_from(clip_repo_url, clip_repo_dir)
+                lora_model_path = os.path.join("inputs", "image", "sd_models", "lora", lora_model_name)
+                if os.path.exists(lora_model_path):
+                    adapter_name = os.path.splitext(os.path.basename(lora_model_name))[0]
+                    try:
+                        model.load_lora_weights(lora_model_path, adapter_name=adapter_name)
+                        model.fuse_lora(lora_scale=lora_scale)
+                        lora_loaded = True
+                        print(f"Loaded LoRA {lora_model_name} with scale {lora_scale}")
+                    except Exception as e:
+                        print(f"Error loading LoRA {lora_model_name}: {str(e)}")
 
-    clip_score = CLIPScore(model_name_or_path=clip_model_name).to("cuda")
+        model.enable_xformers_memory_efficient_attention(attention_op=None)
+        model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
+        model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
 
-    resize = Resize((512, 512))
+        model.to(device)
+        model.text_encoder.to(device)
+        model.vae.to(device)
+        model.unet.to(device)
 
-    clip_scores = []
+        try:
+            if model_scheduler == "EulerDiscreteScheduler":
+                model.scheduler = EulerDiscreteScheduler().EulerDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DPMSolverSinglestepScheduler":
+                model.scheduler = DPMSolverSinglestepScheduler().DPMSolverSinglestepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DPMSolverMultistepScheduler":
+                model.scheduler = DPMSolverMultistepScheduler().DPMSolverMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "EDMDPMSolverMultistepScheduler":
+                model.scheduler = EDMDPMSolverMultistepScheduler().EDMDPMSolverMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "EDMEulerScheduler":
+                model.scheduler = EDMEulerScheduler().EDMEulerScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "KDPM2DiscreteScheduler":
+                model.scheduler = KDPM2DiscreteScheduler().KDPM2DiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "KDPM2AncestralDiscreteScheduler":
+                model.scheduler = KDPM2AncestralDiscreteScheduler().KDPM2AncestralDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "EulerAncestralDiscreteScheduler":
+                model.scheduler = EulerAncestralDiscreteScheduler().EulerAncestralDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "HeunDiscreteScheduler":
+                model.scheduler = HeunDiscreteScheduler().HeunDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "LMSDiscreteScheduler":
+                model.scheduler = LMSDiscreteScheduler().LMSDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DEISMultistepScheduler":
+                model.scheduler = DEISMultistepScheduler().DEISMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "UniPCMultistepScheduler":
+                model.scheduler = UniPCMultistepScheduler().UniPCMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "LCMScheduler":
+                model.scheduler = LCMScheduler().LCMScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DPMSolverSDEScheduler":
+                model.scheduler = DPMSolverSDEScheduler().DPMSolverSDEScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "TCDScheduler":
+                model.scheduler = TCDScheduler().TCDScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DDIMScheduler":
+                model.scheduler = DDIMScheduler().DDIMScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DDPMScheduler":
+                model.scheduler = DDPMScheduler().DDPMScheduler.from_config(
+                    model.scheduler.config)
 
-    for batch in dataset["train"]:
-        image = batch["image"].convert("RGB")
-        image_tensor = torch.from_numpy(np.array(image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
+            print(f"Scheduler successfully set to {model_scheduler}")
+        except Exception as e:
+            print(f"Error initializing scheduler: {e}")
+            print("Using default scheduler")
 
-        generated_images = model(prompt=user_prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps, guidance_scale=cfg_scale,
-                                 output_type="pil").images
-        generated_image = generated_images[0].resize((image.width, image.height))
-        generated_image_tensor = torch.from_numpy(np.array(generated_image)).permute(2, 0, 1).unsqueeze(0).to(
-            "cuda").to(torch.uint8)
+        model.safety_checker = None
 
-        fid.update(resize(image_tensor), real=True)
-        fid.update(resize(generated_image_tensor), real=False)
+        model.enable_vae_slicing()
+        model.enable_vae_tiling()
+        model.enable_model_cpu_offload()
 
-        kid.update(resize(image_tensor), real=True)
-        kid.update(resize(generated_image_tensor), real=False)
+        dataset_path = os.path.join("datasets/sd", dataset_name)
+        dataset = load_dataset("imagefolder", data_dir=dataset_path)
 
-        inception.update(resize(generated_image_tensor))
+        num_samples = len(dataset["train"])
+        subset_size = min(num_samples, 50)
 
-        vif.update(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
+        fid = FrechetInceptionDistance().to("cuda")
+        kid = KernelInceptionDistance(subset_size=subset_size).to("cuda")
+        inception = InceptionScore().to("cuda")
+        vif = VisualInformationFidelity().to("cuda")
+        lpips = LearnedPerceptualImagePatchSimilarity().to("cuda")
+        scc = SpatialCorrelationCoefficient().to("cuda")
+        sdi = SpectralDistortionIndex().to("cuda")
+        sam = SpectralAngleMapper().to("cuda")
+        ssim = StructuralSimilarityIndexMeasure().to("cuda")
 
-        lpips_score = lpips(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
-        scc_score = scc(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
-        sdi_score = sdi(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
-        sam_score = sam(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
-        ssim_score = ssim(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
+        clip_model_name = "openai/clip-vit-base-patch16"
+        clip_repo_url = f"https://huggingface.co/{clip_model_name}"
+        clip_repo_dir = os.path.join("trainer-scripts", clip_model_name)
 
-        clip_score_value = clip_score(resize(generated_image_tensor).to(torch.float32), "a photo of a generated image")
-        clip_scores.append(clip_score_value.detach().item())
+        if not os.path.exists(clip_repo_dir):
+            Repo.clone_from(clip_repo_url, clip_repo_dir)
 
-    fid_score = fid.compute()
-    kid_score, _ = kid.compute()
-    inception_score, _ = inception.compute()
-    vif_score = vif.compute()
-    clip_score_avg = np.mean(clip_scores)
+        clip_score = CLIPScore(model_name_or_path=clip_model_name).to("cuda")
 
-    metrics = {
-        "FID": fid_score.item(),
-        "KID": kid_score.item(),
-        "Inception Score": inception_score.item(),
-        "VIF": vif_score.item(),
-        "CLIP Score": clip_score_avg,
-        "LPIPS": lpips_score.item(),
-        "SCC": scc_score.item(),
-        "SDI": sdi_score.item(),
-        "SAM": sam_score.item(),
-        "SSIM": ssim_score.item()
-    }
+        resize = Resize((512, 512))
 
-    fig = plot_sd_evaluation_metrics(metrics)
+        clip_scores = []
 
-    if model_method == "Diffusers":
-        plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
-    elif model_method == "Safetensors":
-        plot_path = os.path.join("finetuned-models/sd/full", f"{model_name}_evaluation_plot.png")
-    fig.savefig(plot_path)
+        for batch in dataset["train"]:
+            image = batch["image"].convert("RGB")
+            image_tensor = torch.from_numpy(np.array(image)).permute(2, 0, 1).unsqueeze(0).to("cuda").to(torch.uint8)
 
-    return f"Evaluation completed successfully. Results saved to {plot_path}", fig
+            generated_images = model(prompt=user_prompt, negative_prompt=negative_prompt,
+                                     num_inference_steps=num_inference_steps, guidance_scale=cfg_scale,
+                                     output_type="pil").images
+            generated_image = generated_images[0].resize((image.width, image.height))
+            generated_image_tensor = torch.from_numpy(np.array(generated_image)).permute(2, 0, 1).unsqueeze(0).to(
+                "cuda").to(torch.uint8)
+
+            fid.update(resize(image_tensor), real=True)
+            fid.update(resize(generated_image_tensor), real=False)
+
+            kid.update(resize(image_tensor), real=True)
+            kid.update(resize(generated_image_tensor), real=False)
+
+            inception.update(resize(generated_image_tensor))
+
+            vif.update(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
+
+            lpips_score = lpips(resize(image_tensor).to(torch.float32),
+                                resize(generated_image_tensor).to(torch.float32))
+            scc_score = scc(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
+            sdi_score = sdi(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
+            sam_score = sam(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
+            ssim_score = ssim(resize(image_tensor).to(torch.float32), resize(generated_image_tensor).to(torch.float32))
+
+            clip_score_value = clip_score(resize(generated_image_tensor).to(torch.float32),
+                                          "a photo of a generated image")
+            clip_scores.append(clip_score_value.detach().item())
+
+        fid_score = fid.compute()
+        kid_score, _ = kid.compute()
+        inception_score, _ = inception.compute()
+        vif_score = vif.compute()
+        clip_score_avg = np.mean(clip_scores)
+
+        metrics = {
+            "FID": fid_score.item(),
+            "KID": kid_score.item(),
+            "Inception Score": inception_score.item(),
+            "VIF": vif_score.item(),
+            "CLIP Score": clip_score_avg,
+            "LPIPS": lpips_score.item(),
+            "SCC": scc_score.item(),
+            "SDI": sdi_score.item(),
+            "SAM": sam_score.item(),
+            "SSIM": ssim_score.item()
+        }
+
+        fig = plot_sd_evaluation_metrics(metrics)
+
+        if model_method == "Diffusers":
+            plot_path = os.path.join(model_path, f"{model_name}_evaluation_plot.png")
+        elif model_method == "Safetensors":
+            plot_path = os.path.join("finetuned-models/sd/full", f"{model_name}_evaluation_plot.png")
+        fig.savefig(plot_path)
+
+        return f"Evaluation completed successfully. Results saved to {plot_path}", fig
+
+    except Exception as e:
+        return None, str(e)
+    finally:
+        del model
+        flush()
 
 
 def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safetensors):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
     output_path = os.path.join("finetuned-models/sd/full")
 
-    if model_type == "SD":
-        try:
-            args = [
-                "py",
-                "trainer-scripts/sd/convert_diffusers_to_original_stable_diffusion.py",
-                "--model_path", model_path,
-                "--checkpoint_path", output_path,
-            ]
-            if use_half:
-                args.append("--half")
-            if use_safetensors:
-                args.append("--use_safetensors")
-
-            subprocess.run(args, check=True)
-
-            return f"Model successfully converted to single file and saved to {output_path}"
-        except subprocess.CalledProcessError as e:
-            return f"Error converting model to single file: {e}"
-    elif model_type == "SDXL":
-        try:
-            args = [
-                "py",
-                "trainer-scripts/sd/convert_diffusers_to_original_sdxl.py",
-                "--model_path", model_path,
-                "--checkpoint_path", output_path,
-            ]
-            if use_half:
-                args.append("--half")
-            if use_safetensors:
-                args.append("--use_safetensors")
-
-            subprocess.run(args, check=True)
-
-            return f"Model successfully converted to single file and saved to {output_path}"
-        except subprocess.CalledProcessError as e:
-            return f"Error converting model to single file: {e}"
-
-
-def generate_image(model_name, lora_model_name, model_method, model_type, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
-    if model_method == "Diffusers":
+    try:
         if model_type == "SD":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16,
-                                                            safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
+            try:
+                args = [
+                    "py",
+                    "trainer-scripts/sd/convert_diffusers_to_original_stable_diffusion.py",
+                    "--model_path", model_path,
+                    "--checkpoint_path", output_path,
+                ]
+                if use_half:
+                    args.append("--half")
+                if use_safetensors:
+                    args.append("--use_safetensors")
+
+                subprocess.run(args, check=True)
+
+                return f"Model successfully converted to single file and saved to {output_path}"
+            except subprocess.CalledProcessError as e:
+                return f"Error converting model to single file: {e}"
         elif model_type == "SDXL":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline.from_pretrained(model_path, torch_dtype=torch.float16, attention_slice=1,
-                                                            safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
-    elif model_method == "Safetensors":
-        if model_type == "SD":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline.from_single_file(model_path, torch_dtype=torch.float16,
-                                                            safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
-        elif model_type == "SDXL":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline.from_single_file(model_path, torch_dtype=torch.float16, attention_slice=1,
-                                                              safety_checker=None).to(
-                "cuda")
-            model.scheduler = DDPMScheduler.from_config(model.scheduler.config)
-    else:
-        return "Invalid model type selected", None
+            try:
+                args = [
+                    "py",
+                    "trainer-scripts/sd/convert_diffusers_to_original_sdxl.py",
+                    "--model_path", model_path,
+                    "--checkpoint_path", output_path,
+                ]
+                if use_half:
+                    args.append("--half")
+                if use_safetensors:
+                    args.append("--use_safetensors")
 
-    if not model_name:
-        return "Please select the model", None
+                subprocess.run(args, check=True)
 
-    if lora_model_name and not model_name:
-        return "Please select the original model", None
+                return f"Model successfully converted to single file and saved to {output_path}"
+            except subprocess.CalledProcessError as e:
+                return f"Error converting model to single file: {e}"
 
-    if lora_model_name:
-        lora_model_path = os.path.join("finetuned-models/sd/lora", lora_model_name)
-        model.unet.load_attn_procs(lora_model_path)
+    except Exception as e:
+        return None, str(e)
+    finally:
+        flush()
 
-    image = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
-                  guidance_scale=cfg_scale, width=width, height=height).images[0]
 
-    output_dir = "outputs/sd"
-    os.makedirs(output_dir, exist_ok=True)
+def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, model_scheduler, num_inference_steps, cfg_scale, width, height, clip_skip, seed, num_images_per_prompt, output_format):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    output_file = f"sd_image_{timestamp}.{output_format}"
-    output_path = os.path.join(output_dir, output_file)
+    try:
+        if seed == "" or seed is None:
+            seed = random.randint(0, 2 ** 32 - 1)
+        else:
+            seed = int(seed)
+        generator = torch.Generator(device).manual_seed(seed)
 
-    image.save(output_path)
+        if model_method == "Diffusers":
+            if model_type == "SD":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionPipeline().StableDiffusionPipeline.from_pretrained(model_path,
+                                                                                          torch_dtype=torch.float16,
+                                                                                          safety_checker=None).to(
+                    device)
+            elif model_type == "SDXL":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_pretrained(model_path,
+                                                                                              torch_dtype=torch.float16,
+                                                                                              attention_slice=1,
+                                                                                              safety_checker=None).to(
+                    device)
+        elif model_method == "Safetensors":
+            if model_type == "SD":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionPipeline().StableDiffusionPipeline.from_single_file(model_path,
+                                                                                           torch_dtype=torch.float16,
+                                                                                           safety_checker=None).to(
+                    device)
+            elif model_type == "SDXL":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_single_file(model_path,
+                                                                                               torch_dtype=torch.float16,
+                                                                                               attention_slice=1,
+                                                                                               safety_checker=None).to(
+                    device)
+        else:
+            return "Invalid model type selected", None
 
-    return image, "Image generation successful"
+        if not model_name:
+            return "Please select the model", None
+
+        if lora_model_names and not model_name:
+            return "Please select the original model", None
+
+        if vae_model_name is not None:
+            vae_model_path = os.path.join("inputs", "image", "sd_models", "vae", f"{vae_model_name}.safetensors")
+            if os.path.exists(vae_model_path):
+                vae = AutoencoderKL().AutoencoderKL.from_single_file(vae_model_path, device_map="auto",
+                                                                     torch_dtype=torch.float16,
+                                                                     variant="fp16")
+                model.vae = vae.to(device)
+
+        model.enable_xformers_memory_efficient_attention(attention_op=None)
+        model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
+        model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
+
+        model.to(device)
+        model.text_encoder.to(device)
+        model.vae.to(device)
+        model.unet.to(device)
+
+        try:
+            if model_scheduler == "EulerDiscreteScheduler":
+                model.scheduler = EulerDiscreteScheduler().EulerDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DPMSolverSinglestepScheduler":
+                model.scheduler = DPMSolverSinglestepScheduler().DPMSolverSinglestepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DPMSolverMultistepScheduler":
+                model.scheduler = DPMSolverMultistepScheduler().DPMSolverMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "EDMDPMSolverMultistepScheduler":
+                model.scheduler = EDMDPMSolverMultistepScheduler().EDMDPMSolverMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "EDMEulerScheduler":
+                model.scheduler = EDMEulerScheduler().EDMEulerScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "KDPM2DiscreteScheduler":
+                model.scheduler = KDPM2DiscreteScheduler().KDPM2DiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "KDPM2AncestralDiscreteScheduler":
+                model.scheduler = KDPM2AncestralDiscreteScheduler().KDPM2AncestralDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "EulerAncestralDiscreteScheduler":
+                model.scheduler = EulerAncestralDiscreteScheduler().EulerAncestralDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "HeunDiscreteScheduler":
+                model.scheduler = HeunDiscreteScheduler().HeunDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "LMSDiscreteScheduler":
+                model.scheduler = LMSDiscreteScheduler().LMSDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DEISMultistepScheduler":
+                model.scheduler = DEISMultistepScheduler().DEISMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "UniPCMultistepScheduler":
+                model.scheduler = UniPCMultistepScheduler().UniPCMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "LCMScheduler":
+                model.scheduler = LCMScheduler().LCMScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DPMSolverSDEScheduler":
+                model.scheduler = DPMSolverSDEScheduler().DPMSolverSDEScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "TCDScheduler":
+                model.scheduler = TCDScheduler().TCDScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DDIMScheduler":
+                model.scheduler = DDIMScheduler().DDIMScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DDPMScheduler":
+                model.scheduler = DDPMScheduler().DDPMScheduler.from_config(
+                    model.scheduler.config)
+
+            print(f"Scheduler successfully set to {model_scheduler}")
+        except Exception as e:
+            print(f"Error initializing scheduler: {e}")
+            print("Using default scheduler")
+
+        model.safety_checker = None
+
+        model.enable_vae_slicing()
+        model.enable_vae_tiling()
+        model.enable_model_cpu_offload()
+
+        if isinstance(lora_scales, str):
+            lora_scales = [float(scale.strip()) for scale in lora_scales.split(',') if scale.strip()]
+        elif isinstance(lora_scales, (int, float)):
+            lora_scales = [float(lora_scales)]
+
+        lora_loaded = False
+        if lora_model_names and lora_scales:
+            if len(lora_model_names) != len(lora_scales):
+                print(
+                    f"Warning: Number of LoRA models ({len(lora_model_names)}) does not match number of scales ({len(lora_scales)}). Using available scales.")
+
+            for i, lora_model_name in enumerate(lora_model_names):
+                if i < len(lora_scales):
+                    lora_scale = lora_scales[i]
+                else:
+                    lora_scale = 1.0
+
+                lora_model_path = os.path.join("inputs", "image", "sd_models", "lora", lora_model_name)
+                if os.path.exists(lora_model_path):
+                    adapter_name = os.path.splitext(os.path.basename(lora_model_name))[0]
+                    try:
+                        model.load_lora_weights(lora_model_path, adapter_name=adapter_name)
+                        model.fuse_lora(lora_scale=lora_scale)
+                        lora_loaded = True
+                        print(f"Loaded LoRA {lora_model_name} with scale {lora_scale}")
+                    except Exception as e:
+                        print(f"Error loading LoRA {lora_model_name}: {str(e)}")
+
+        images = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
+                       guidance_scale=cfg_scale, width=width, height=height, generator=generator, clip_skip=clip_skip, num_images_per_prompt=num_images_per_prompt).images[0]
+
+        image_paths = []
+        for i, image in enumerate(images):
+            today = datetime.now().date()
+            image_dir = os.path.join('outputs', f"StableDiffusion_{today.strftime('%Y%m%d')}")
+            os.makedirs(image_dir, exist_ok=True)
+            image_filename = f"sd-generate_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.{output_format}"
+            image_path = os.path.join(image_dir, image_filename)
+
+            image.save(image_path, format=output_format.upper())
+            image_paths.append(image_path)
+
+        return image_paths, "Image generation successful"
+
+    except Exception as e:
+        return None, str(e)
+    finally:
+        del model
+        flush()
 
 
 def close_terminal():
@@ -1366,6 +1751,9 @@ llm_dataset_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Dataset", lang),
     description=_("Create a new dataset or add a new column to an existing dataset for LLM", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Create", lang)
 )
 
 llm_finetune_interface = gr.Interface(
@@ -1374,24 +1762,35 @@ llm_finetune_interface = gr.Interface(
         gr.Dropdown(choices=get_available_llm_models(), label=_("Model", lang)),
         gr.Dropdown(choices=get_available_llm_datasets(), label=_("Dataset", lang)),
         gr.Radio(choices=["Full", "Freeze", "LORA"], value="Full", label=_("Finetune Method", lang)),
-        gr.Textbox(label=_("Output Model Name", lang), type="text"),
+        gr.Textbox(label=_("Output Model Name", lang), type="text")
+    ],
+    additional_inputs=[
         gr.Number(value=10, label=_("Epochs", lang)),
         gr.Number(value=4, label=_("Batch size", lang)),
         gr.Number(value=3e-5, label=_("Learning rate", lang)),
         gr.Number(value=0.01, label=_("Weight decay", lang)),
+        gr.Number(value=0.9, label=_("Momentum", lang)),
         gr.Number(value=100, label=_("Warmup steps", lang)),
-        gr.Number(value=128, label=_("Block size", lang)),
         gr.Number(value=1, label=_("Gradient accumulation steps", lang)),
         gr.Number(value=0.9, label=_("Adam beta 1", lang)),
         gr.Number(value=0.999, label=_("Adam beta 2", lang)),
         gr.Number(value=1e-8, label=_("Adam epsilon", lang)),
-        gr.Dropdown(choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"], value="linear", label=_("LR Scheduler", lang)),
+        gr.Dropdown(
+            choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
+            value="linear", label=_("LR Scheduler", lang)),
         gr.Number(value=2, label=_("Freeze layers", lang)),
         gr.Number(value=16, label=_("LORA r", lang)),
         gr.Number(value=32, label=_("LORA alpha", lang)),
         gr.Number(value=0.05, label=_("LORA dropout", lang)),
         gr.Checkbox(label=_("Use xformers", lang), value=False),
+        gr.Dropdown(choices=["Adam", "AdamW", "SGD"], value="Adam", label=_("Optimizer", lang)),
+        gr.Number(value=1.0, label=_("Gradient clip value", lang)),
+        gr.Number(value=0.0, label=_("L1 regularization", lang)),
+        gr.Number(value=0.0, label=_("L2 regularization", lang)),
+        gr.Textbox(label=_("Resume from checkpoint", lang), type="text"),
+        gr.Number(value=512, label=_("Max sequence length", lang)),
     ],
+    additional_inputs_accordion=gr.Accordion(label=_("LLM-Finetune Settings", lang), open=False),
     outputs=[
         gr.Textbox(label=_("Finetuning Status", lang), type="text"),
         gr.Plot(label=_("Finetuning Loss", lang))
@@ -1399,6 +1798,9 @@ llm_finetune_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Finetune", lang),
     description=_("Finetune LLM models on a custom dataset", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Finetune", lang)
 )
 
 llm_evaluate_interface = gr.Interface(
@@ -1420,6 +1822,9 @@ llm_evaluate_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Evaluate", lang),
     description=_("Evaluate finetuned LLM models on a custom dataset", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Evaluate", lang)
 )
 
 llm_quantize_interface = gr.Interface(
@@ -1434,6 +1839,9 @@ llm_quantize_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Quantize", lang),
     description=_("Quantize finetuned LLM models to .gguf format using llama.cpp", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Quantize", lang)
 )
 
 llm_generate_interface = gr.Interface(
@@ -1442,13 +1850,16 @@ llm_generate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_finetuned_llm_models(), label=_("Model", lang)),
         gr.Dropdown(choices=get_available_llm_lora_models(), label=_("LORA Model (optional)", lang)),
         gr.Radio(choices=["transformers", "llama.cpp"], value="transformers", label=_("Model Type", lang)),
-        gr.Textbox(label=_("Request", lang), type="text"),
-        gr.Slider(minimum=1, maximum=2048, value=512, step=1, label=_("Max length", lang)),
+        gr.Textbox(label=_("Request", lang), type="text")
+    ],
+    additional_inputs=[
+        gr.Slider(minimum=1, maximum=2048, value=512, step=1, label=_("Max tokens", lang)),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label=_("Temperature", lang)),
         gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, label=_("Top P", lang)),
         gr.Slider(minimum=0, maximum=100, value=20, step=1, label=_("Top K", lang)),
-        gr.Radio(choices=["txt", "json"], value="txt", label=_("Output Format", lang)),
+        gr.Radio(choices=["txt", "json"], value="txt", label=_("Output Format", lang))
     ],
+    additional_inputs_accordion=gr.Accordion(label=_("LLM Settings", lang), open=False),
     outputs=[
         gr.Textbox(label=_("Generated text", lang), type="text"),
         gr.Textbox(label=_("Message", lang), type="text"),
@@ -1456,6 +1867,9 @@ llm_generate_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Generate", lang),
     description=_("Generate text using finetuned LLM models", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Generate", lang)
 )
 
 sd_dataset_interface = gr.Interface(
@@ -1473,6 +1887,9 @@ sd_dataset_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Dataset", lang),
     description=_("Create a new dataset or add a new column to an existing dataset for Stable Diffusion", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Create", lang)
 )
 
 sd_finetune_interface = gr.Interface(
@@ -1482,12 +1899,16 @@ sd_finetune_interface = gr.Interface(
         gr.Dropdown(choices=get_available_sd_datasets(), label=_("Dataset", lang)),
         gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang)),
         gr.Radio(choices=["Full", "LORA"], value="Full", label=_("Finetune Method", lang)),
-        gr.Textbox(label=_("Output Model Name", lang), type="text"),
+        gr.Textbox(label=_("Output Model Name", lang), type="text")
+    ],
+    additional_inputs=[
         gr.Number(value=512, label=_("Resolution", lang)),
         gr.Number(value=1, label=_("Train Batch Size", lang)),
         gr.Number(value=1, label=_("Gradient Accumulation Steps", lang)),
         gr.Number(value=5e-6, label=_("Learning Rate", lang)),
-        gr.Dropdown(choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"], value="linear", label=_("LR Scheduler", lang)),
+        gr.Dropdown(
+            choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
+            value="linear", label=_("LR Scheduler", lang)),
         gr.Number(value=0, label=_("LR Warmup Steps", lang)),
         gr.Number(value=100, label=_("Max Train Steps", lang)),
         gr.Number(value=0.9, label=_("Adam beta 1", lang)),
@@ -1497,8 +1918,9 @@ sd_finetune_interface = gr.Interface(
         gr.Number(value=1.0, label=_("Max grad norm", lang)),
         gr.Number(value=0, label=_("Noise offset", lang)),
         gr.Number(value=4, label=_("LORA Rank", lang)),
-        gr.Checkbox(label=_("Use xformers", lang), value=False),
+        gr.Checkbox(label=_("Use xformers", lang), value=False)
     ],
+    additional_inputs_accordion=gr.Accordion(label=_("StableDiffusion-Finetune Settings", lang), open=False),
     outputs=[
         gr.Textbox(label=_("Finetuning Status", lang), type="text"),
         gr.Plot(label=_("Finetuning Loss", lang))
@@ -1506,13 +1928,26 @@ sd_finetune_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Finetune", lang),
     description=_("Finetune Stable Diffusion models on a custom dataset", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Finetune", lang)
 )
 
 sd_evaluate_interface = gr.Interface(
     fn=evaluate_sd,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label=_("Model", lang)),
+        gr.Dropdown(choices=[
+            "EulerDiscreteScheduler", "DPMSolverSinglestepScheduler", "DPMSolverMultistepScheduler",
+            "EDMDPMSolverMultistepScheduler", "EDMEulerScheduler", "KDPM2DiscreteScheduler",
+            "KDPM2AncestralDiscreteScheduler", "EulerAncestralDiscreteScheduler",
+            "HeunDiscreteScheduler", "LMSDiscreteScheduler", "DEISMultistepScheduler",
+            "UniPCMultistepScheduler", "LCMScheduler", "DPMSolverSDEScheduler",
+            "TCDScheduler", "DDIMScheduler", "DDPMScheduler"
+        ], label=_("Select scheduler", lang), value="EulerDiscreteScheduler"),
+        gr.Dropdown(choices=get_available_vae_sd_models(), label=_("Select VAE model (optional)", lang), value=None),
         gr.Dropdown(choices=get_available_sd_lora_models(), label=_("LORA Model (optional)", lang)),
+        gr.Textbox(label=_("LoRA Scales", lang)),
         gr.Dropdown(choices=get_available_sd_datasets(), label=_("Dataset", lang)),
         gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label=_("Model Method", lang)),
         gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang)),
@@ -1528,6 +1963,9 @@ sd_evaluate_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - StabledDiffusion-Evaluate", lang),
     description=_("Evaluate finetuned Stable Diffusion models on a custom dataset", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Evaluate", lang)
 )
 
 sd_convert_interface = gr.Interface(
@@ -1544,30 +1982,52 @@ sd_convert_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Conversion", lang),
     description=_("Convert finetuned Stable Diffusion models to single file (.ckpt or .safetensors)", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Convert", lang)
 )
 
 sd_generate_interface = gr.Interface(
     fn=generate_image,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label=_("Model", lang)),
+        gr.Dropdown(choices=get_available_vae_sd_models(), label=_("Select VAE model (optional)", lang), value=None),
         gr.Dropdown(choices=get_available_sd_lora_models(), label=_("LORA Model (optional)", lang)),
+        gr.Textbox(label=_("LoRA Scales", lang)),
         gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label=_("Model Method", lang)),
-        gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang)),
+        gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang))
+    ],
+    additional_inputs=[
         gr.Textbox(label=_("Prompt", lang), type="text"),
         gr.Textbox(label=_("Negative Prompt", lang), type="text"),
+        gr.Dropdown(choices=[
+            "EulerDiscreteScheduler", "DPMSolverSinglestepScheduler", "DPMSolverMultistepScheduler",
+            "EDMDPMSolverMultistepScheduler", "EDMEulerScheduler", "KDPM2DiscreteScheduler",
+            "KDPM2AncestralDiscreteScheduler", "EulerAncestralDiscreteScheduler",
+            "HeunDiscreteScheduler", "LMSDiscreteScheduler", "DEISMultistepScheduler",
+            "UniPCMultistepScheduler", "LCMScheduler", "DPMSolverSDEScheduler",
+            "TCDScheduler", "DDIMScheduler", "DDPMScheduler"
+        ], label=_("Select scheduler", lang), value="EulerDiscreteScheduler"),
         gr.Slider(minimum=1, maximum=150, value=30, step=1, label=_("Steps", lang)),
         gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label=_("CFG", lang)),
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label=_("Width", lang)),
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label=_("Height", lang)),
-        gr.Radio(choices=["png", "jpeg"], value="png", label=_("Output Format", lang)),
+        gr.Slider(minimum=1, maximum=4, value=1, step=1, label=_("Clip skip", lang)),
+        gr.Textbox(label=_("Seed (optional)", lang), value=""),
+        gr.Slider(minimum=1, maximum=4, value=1, step=1, label=_("Number of images to generate", lang)),
+        gr.Radio(choices=["png", "jpeg"], value="png", label=_("Output Format", lang))
     ],
+    additional_inputs_accordion=gr.Accordion(label=_("StableDiffusion Settings", lang), open=False),
     outputs=[
-        gr.Image(label=_("Generated Image", lang)),
+        gr.Gallery(label=_("Generated images", lang), elem_id="gallery", columns=[2], rows=[2], object_fit="contain", height="auto"),
         gr.Textbox(label=_("Message", lang), type="text"),
     ],
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Generate", lang),
     description=_("Generate images using finetuned Stable Diffusion models", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Generate", lang)
 )
 
 wiki_interface = gr.Interface(
@@ -1589,6 +2049,8 @@ wiki_interface = gr.Interface(
     description=_("This interface displays the Wiki content from the specified URL or local file.", lang),
     allow_flagging="never",
     clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Learn", lang)
 )
 
 model_downloader_interface = gr.Interface(
@@ -1603,6 +2065,9 @@ model_downloader_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - ModelDownloader", lang),
     description=_("This user interface allows you to download LLM and StableDiffusion models", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Download", lang)
 )
 
 settings_interface = gr.Interface(
@@ -1641,6 +2106,9 @@ settings_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - Settings", lang),
     description=_("This user interface allows you to change settings of the application", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Update", lang)
 )
 
 system_interface = gr.Interface(
@@ -1662,6 +2130,9 @@ system_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - System", lang),
     description=_("This interface displays system information", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Display", lang)
 )
 
 if settings['custom_theme']['enabled']:
@@ -1715,11 +2186,13 @@ with gr.TabbedInterface([
         sd_finetune_interface.input_components[0],
         sd_finetune_interface.input_components[1],
         sd_evaluate_interface.input_components[0],
-        sd_evaluate_interface.input_components[1],
         sd_evaluate_interface.input_components[2],
+        sd_evaluate_interface.input_components[3],
+        sd_evaluate_interface.input_components[5],
         sd_convert_interface.input_components[0],
         sd_generate_interface.input_components[0],
         sd_generate_interface.input_components[1],
+        sd_generate_interface.input_components[2],
     ]
 
     reload_button.click(reload_interface, outputs=dropdowns_to_update[:8])

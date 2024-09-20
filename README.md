@@ -22,7 +22,6 @@ The goal of the project - to create the easiest possible application to finetune
 
 * Easy installation via install.bat(Windows) or install.sh(Linux)
 * Flexible and optimized interface (By Gradio)
-* Authentication via admin:admin (You can enter your login details in the GradioAuth.txt file)
 * Support for Transformers: finetune, evaluate, quantize and generate (LLM)
 * Support for Diffusers and Safetensors: finetune, evaluate, conversion and generate (StableDiffusion)
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
@@ -88,6 +87,7 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 * `gradio` - https://github.com/gradio-app/gradio
 * `transformers` - https://github.com/huggingface/transformers
 * `diffusers` - https://github.com/huggingface/diffusers
+* `llama.cpp-python` - https://github.com/abetlen/llama-cpp-python
 
 ## Third Party Licenses:
 

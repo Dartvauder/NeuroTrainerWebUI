@@ -348,7 +348,7 @@ def get_memory_usage():
     return cpu_mem, gpu_mem
 
 
-class MemoryMonitorCallback(TrainerCallback):
+class MemoryMonitorCallback(TrainerCallback().TrainerCallback):
     def __init__(self, print_every=1):
         self.print_every = print_every
 
@@ -739,7 +739,7 @@ def quantize_llm(model_name, quantization_type):
         flush()
 
 
-def generate_text(model_name, lora_model_name, model_type, prompt, max_length, temperature, top_p, top_k, output_format):
+def generate_text(model_name, lora_model_name, model_type, prompt, max_tokens, temperature, top_p, top_k, output_format):
     try:
         if model_type == "transformers":
             model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
@@ -769,7 +769,7 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_length, t
                     do_sample=True,
                     attention_mask=attention_mask,
                     pad_token_id=pad_token_id,
-                    max_new_tokens=max_length,
+                    max_new_tokens=max_tokens,
                     num_return_sequences=1,
                     top_p=top_p,
                     top_k=top_k,
@@ -806,11 +806,11 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_length, t
 
             try:
 
-                llm = Llama().Llama(model_path=model_path, n_ctx=max_length, n_parts=-1, seed=-1, f16_kv=True,
+                llm = Llama().Llama(model_path=model_path, n_ctx=max_tokens, n_parts=-1, seed=-1, f16_kv=True,
                                     logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1,
                                     suffix=None)
 
-                output = llm(prompt, max_tokens=max_length, top_k=top_k, top_p=top_p, temperature=temperature,
+                output = llm(prompt, max_tokens=max_tokens, top_k=top_k, top_p=top_p, temperature=temperature,
                              stop=None, echo=False)
 
                 generated_text = output['choices'][0]['text']
@@ -1850,13 +1850,16 @@ llm_generate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_finetuned_llm_models(), label=_("Model", lang)),
         gr.Dropdown(choices=get_available_llm_lora_models(), label=_("LORA Model (optional)", lang)),
         gr.Radio(choices=["transformers", "llama.cpp"], value="transformers", label=_("Model Type", lang)),
-        gr.Textbox(label=_("Request", lang), type="text"),
-        gr.Slider(minimum=1, maximum=2048, value=512, step=1, label=_("Max length", lang)),
+        gr.Textbox(label=_("Request", lang), type="text")
+    ],
+    additional_inputs=[
+        gr.Slider(minimum=1, maximum=2048, value=512, step=1, label=_("Max tokens", lang)),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label=_("Temperature", lang)),
         gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, label=_("Top P", lang)),
         gr.Slider(minimum=0, maximum=100, value=20, step=1, label=_("Top K", lang)),
-        gr.Radio(choices=["txt", "json"], value="txt", label=_("Output Format", lang)),
+        gr.Radio(choices=["txt", "json"], value="txt", label=_("Output Format", lang))
     ],
+    additional_inputs_accordion=gr.Accordion(label=_("LLM Settings", lang), open=False),
     outputs=[
         gr.Textbox(label=_("Generated text", lang), type="text"),
         gr.Textbox(label=_("Message", lang), type="text"),

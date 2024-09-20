@@ -47,7 +47,6 @@
   "Model Type": "Тип модели",
   "Max length": "Максимальная длина",
   "Output Format": "Формат вывода",
-  "Generated text": "Сгенерированный текст",
   "Message": "Сообщение",
   "LLM Settings": "Настройки LLM",
   "LLM text response": "Текстовый ответ LLM",

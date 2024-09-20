@@ -1615,6 +1615,9 @@ llm_dataset_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Dataset", lang),
     description=_("Create a new dataset or add a new column to an existing dataset for LLM", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Create", lang)
 )
 
 llm_finetune_interface = gr.Interface(
@@ -1653,6 +1656,9 @@ llm_finetune_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Finetune", lang),
     description=_("Finetune LLM models on a custom dataset", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Finetune", lang)
 )
 
 llm_evaluate_interface = gr.Interface(
@@ -1674,6 +1680,9 @@ llm_evaluate_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Evaluate", lang),
     description=_("Evaluate finetuned LLM models on a custom dataset", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Evaluate", lang)
 )
 
 llm_quantize_interface = gr.Interface(
@@ -1688,6 +1697,9 @@ llm_quantize_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Quantize", lang),
     description=_("Quantize finetuned LLM models to .gguf format using llama.cpp", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Quantize", lang)
 )
 
 llm_generate_interface = gr.Interface(
@@ -1710,6 +1722,9 @@ llm_generate_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Generate", lang),
     description=_("Generate text using finetuned LLM models", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Generate", lang)
 )
 
 sd_dataset_interface = gr.Interface(
@@ -1727,6 +1742,9 @@ sd_dataset_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Dataset", lang),
     description=_("Create a new dataset or add a new column to an existing dataset for Stable Diffusion", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Create", lang)
 )
 
 sd_finetune_interface = gr.Interface(
@@ -1765,6 +1783,9 @@ sd_finetune_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Finetune", lang),
     description=_("Finetune Stable Diffusion models on a custom dataset", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Finetune", lang)
 )
 
 sd_evaluate_interface = gr.Interface(
@@ -1797,6 +1818,9 @@ sd_evaluate_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - StabledDiffusion-Evaluate", lang),
     description=_("Evaluate finetuned Stable Diffusion models on a custom dataset", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Evaluate", lang)
 )
 
 sd_convert_interface = gr.Interface(
@@ -1813,6 +1837,9 @@ sd_convert_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Conversion", lang),
     description=_("Convert finetuned Stable Diffusion models to single file (.ckpt or .safetensors)", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Convert", lang)
 )
 
 sd_generate_interface = gr.Interface(
@@ -1847,6 +1874,9 @@ sd_generate_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Generate", lang),
     description=_("Generate images using finetuned Stable Diffusion models", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Generate", lang)
 )
 
 wiki_interface = gr.Interface(
@@ -1868,6 +1898,8 @@ wiki_interface = gr.Interface(
     description=_("This interface displays the Wiki content from the specified URL or local file.", lang),
     allow_flagging="never",
     clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Learn", lang)
 )
 
 model_downloader_interface = gr.Interface(
@@ -1882,6 +1914,9 @@ model_downloader_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - ModelDownloader", lang),
     description=_("This user interface allows you to download LLM and StableDiffusion models", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Download", lang)
 )
 
 settings_interface = gr.Interface(
@@ -1920,6 +1955,9 @@ settings_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - Settings", lang),
     description=_("This user interface allows you to change settings of the application", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Update", lang)
 )
 
 system_interface = gr.Interface(
@@ -1941,6 +1979,9 @@ system_interface = gr.Interface(
     title=_("NeuroTrainerWebUI (ALPHA) - System", lang),
     description=_("This interface displays system information", lang),
     allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Display", lang)
 )
 
 if settings['custom_theme']['enabled']:

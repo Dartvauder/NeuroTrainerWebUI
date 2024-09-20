@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import warnings
 import importlib
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1378,10 +1379,16 @@ def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safete
         flush()
 
 
-def generate_image(model_name, model_scheduler, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, output_format):
+def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, model_scheduler, num_inference_steps, cfg_scale, width, height, clip_skip, seed, num_images_per_prompt, output_format):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     try:
+        if seed == "" or seed is None:
+            seed = random.randint(0, 2 ** 32 - 1)
+        else:
+            seed = int(seed)
+        generator = torch.Generator(device).manual_seed(seed)
+
         if model_method == "Diffusers":
             if model_type == "SD":
                 model_path = os.path.join("finetuned-models/sd/full", model_name)
@@ -1528,19 +1535,21 @@ def generate_image(model_name, model_scheduler, vae_model_name, lora_model_names
                     except Exception as e:
                         print(f"Error loading LoRA {lora_model_name}: {str(e)}")
 
-        image = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
-                      guidance_scale=cfg_scale, width=width, height=height).images[0]
+        images = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
+                       guidance_scale=cfg_scale, width=width, height=height, generator=generator, clip_skip=clip_skip, num_images_per_prompt=num_images_per_prompt).images[0]
 
-        output_dir = "outputs/sd"
-        os.makedirs(output_dir, exist_ok=True)
+        image_paths = []
+        for i, image in enumerate(images):
+            today = datetime.now().date()
+            image_dir = os.path.join('outputs', f"StableDiffusion_{today.strftime('%Y%m%d')}")
+            os.makedirs(image_dir, exist_ok=True)
+            image_filename = f"sd-generate_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.{output_format}"
+            image_path = os.path.join(image_dir, image_filename)
 
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        output_file = f"sd_image_{timestamp}.{output_format}"
-        output_path = os.path.join(output_dir, output_file)
+            image.save(image_path, format=output_format.upper())
+            image_paths.append(image_path)
 
-        image.save(output_path)
-
-        return image, "Image generation successful"
+        return image_paths, "Image generation successful"
 
     except Exception as e:
         return None, str(e)
@@ -1979,6 +1988,15 @@ sd_generate_interface = gr.Interface(
     fn=generate_image,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label=_("Model", lang)),
+        gr.Dropdown(choices=get_available_vae_sd_models(), label=_("Select VAE model (optional)", lang), value=None),
+        gr.Dropdown(choices=get_available_sd_lora_models(), label=_("LORA Model (optional)", lang)),
+        gr.Textbox(label=_("LoRA Scales", lang)),
+        gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label=_("Model Method", lang)),
+        gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang))
+    ],
+    additional_inputs=[
+        gr.Textbox(label=_("Prompt", lang), type="text"),
+        gr.Textbox(label=_("Negative Prompt", lang), type="text"),
         gr.Dropdown(choices=[
             "EulerDiscreteScheduler", "DPMSolverSinglestepScheduler", "DPMSolverMultistepScheduler",
             "EDMDPMSolverMultistepScheduler", "EDMEulerScheduler", "KDPM2DiscreteScheduler",
@@ -1987,21 +2005,18 @@ sd_generate_interface = gr.Interface(
             "UniPCMultistepScheduler", "LCMScheduler", "DPMSolverSDEScheduler",
             "TCDScheduler", "DDIMScheduler", "DDPMScheduler"
         ], label=_("Select scheduler", lang), value="EulerDiscreteScheduler"),
-        gr.Dropdown(choices=get_available_vae_sd_models(), label=_("Select VAE model (optional)", lang), value=None),
-        gr.Dropdown(choices=get_available_sd_lora_models(), label=_("LORA Model (optional)", lang)),
-        gr.Textbox(label=_("LoRA Scales", lang)),
-        gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label=_("Model Method", lang)),
-        gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang)),
-        gr.Textbox(label=_("Prompt", lang), type="text"),
-        gr.Textbox(label=_("Negative Prompt", lang), type="text"),
         gr.Slider(minimum=1, maximum=150, value=30, step=1, label=_("Steps", lang)),
         gr.Slider(minimum=1, maximum=30, value=8, step=0.5, label=_("CFG", lang)),
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label=_("Width", lang)),
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label=_("Height", lang)),
-        gr.Radio(choices=["png", "jpeg"], value="png", label=_("Output Format", lang)),
+        gr.Slider(minimum=1, maximum=4, value=1, step=1, label=_("Clip skip", lang)),
+        gr.Textbox(label=_("Seed (optional)", lang), value=""),
+        gr.Slider(minimum=1, maximum=4, value=1, step=1, label=_("Number of images to generate", lang)),
+        gr.Radio(choices=["png", "jpeg"], value="png", label=_("Output Format", lang))
     ],
+    additional_inputs_accordion=gr.Accordion(label=_("StableDiffusion Settings", lang), open=False),
     outputs=[
-        gr.Image(label=_("Generated Image", lang)),
+        gr.Gallery(label=_("Generated images", lang), elem_id="gallery", columns=[2], rows=[2], object_fit="contain", height="auto"),
         gr.Textbox(label=_("Message", lang), type="text"),
     ],
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Generate", lang),
@@ -2173,8 +2188,8 @@ with gr.TabbedInterface([
         sd_evaluate_interface.input_components[5],
         sd_convert_interface.input_components[0],
         sd_generate_interface.input_components[0],
+        sd_generate_interface.input_components[1],
         sd_generate_interface.input_components[2],
-        sd_generate_interface.input_components[3],
     ]
 
     reload_button.click(reload_interface, outputs=dropdowns_to_update[:8])

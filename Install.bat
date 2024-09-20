@@ -25,11 +25,6 @@ pip install --no-deps -r "%CURRENT_DIR%RequirementsFiles\requirements-stable-dif
 timeout /t 3 /nobreak >nul
 cls
 
-echo Post-installing patches...
-python "%CURRENT_DIR%RequirementsFiles\post_install.py"
-timeout /t 3 /nobreak >nul
-cls
-
 echo Checking for installation errors...
 findstr /C:"error" %ERROR_LOG% >nul
 if %ERRORLEVEL% equ 0 (

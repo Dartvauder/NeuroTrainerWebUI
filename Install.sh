@@ -25,11 +25,6 @@ pip install --no-deps -r "$CURRENT_DIR/RequirementsFiles/requirements-stable-dif
 sleep 3
 clear
 
-echo "Post-installing patches..."
-python3 "$CURRENT_DIR/RequirementsFiles/post_install.py"
-sleep 3
-clear
-
 echo "Checking for installation errors..."
 if grep -iq "error" "$ERROR_LOG"; then
     echo "Some packages failed to install. Please check $ERROR_LOG for details."

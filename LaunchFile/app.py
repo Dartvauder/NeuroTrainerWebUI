@@ -1,6 +1,5 @@
 import logging
 import os
-import random
 import warnings
 import importlib
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,11 +12,12 @@ os.environ["XDG_CACHE_HOME"] = cache_dir
 temp_dir = os.path.join("temp")
 os.makedirs(temp_dir, exist_ok=True)
 os.environ["TMPDIR"] = temp_dir
+import random
+import imageio
 import markdown
 import gc
 import platform
 import sys
-import xformers
 from git import Repo
 import requests
 import gradio as gr
@@ -101,6 +101,19 @@ DDIMInverseScheduler = lazy_import('diffusers', 'DDIMInverseScheduler')
 # Another imports
 Llama = lazy_import('llama_cpp', 'Llama')
 
+XFORMERS_AVAILABLE = False
+try:
+    torch.cuda.is_available()
+    import xformers
+    import xformers.ops
+
+    XFORMERS_AVAILABLE = True
+except ImportError:
+    pass
+    print("Xformers is not installed. Proceeding without it")
+
+stop_signal = False
+
 
 def print_system_info():
     print(f"NeuroSandboxWebUI")
@@ -136,6 +149,11 @@ except Exception as e:
 def flush():
     gc.collect()
     torch.cuda.empty_cache()
+
+
+def stop_generation():
+    global stop_signal
+    stop_signal = True
 
 
 def load_translation(lang):
@@ -1383,7 +1401,10 @@ def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safete
         flush()
 
 
-def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, model_scheduler, num_inference_steps, cfg_scale, width, height, clip_skip, seed, num_images_per_prompt, output_format):
+def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, model_method, model_type, stop_button, prompt, negative_prompt, model_scheduler, num_inference_steps, cfg_scale, width, height, clip_skip, seed, num_images_per_prompt, output_format, progress=gr.Progress()):
+    global stop_signal
+    stop_signal = False
+    stop_idx = None
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     try:
@@ -1422,13 +1443,13 @@ def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, mo
                                                                                                safety_checker=None).to(
                     device)
         else:
-            return "Invalid model type selected", None
+            return None, None, "Invalid model type selected"
 
         if not model_name:
-            return "Please select the model", None
+            return None, None, "Please select the model"
 
         if lora_model_names and not model_name:
-            return "Please select the original model", None
+            return None, None, "Please select the original model"
 
         if vae_model_name is not None:
             vae_model_path = os.path.join("inputs", "image", "sd_models", "vae", f"{vae_model_name}.safetensors")
@@ -1539,10 +1560,46 @@ def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, mo
                     except Exception as e:
                         print(f"Error loading LoRA {lora_model_name}: {str(e)}")
 
+        def latents_to_rgb(latents):
+            weights = (
+                (60, -60, 25, -70),
+                (60, -5, 15, -50),
+                (60, 10, -5, -35)
+            )
+
+            weights_tensor = torch.t(torch.tensor(weights, dtype=latents.dtype).to(latents.device))
+            biases_tensor = torch.tensor((150, 140, 130), dtype=latents.dtype).to(latents.device)
+            rgb_tensor = torch.einsum("...lxy,lr -> ...rxy", latents, weights_tensor) + biases_tensor.unsqueeze(
+                -1).unsqueeze(-1)
+            image_array = rgb_tensor.clamp(0, 255)[0].byte().cpu().numpy()
+            image_array = image_array.transpose(1, 2, 0)
+
+            return Image.fromarray(image_array)
+
+        def decode_tensors(model, i, t, callback_kwargs):
+            latents = callback_kwargs["latents"]
+            image = latents_to_rgb(latents)
+            image.save(f"temp/{i}.png")
+            return callback_kwargs
+
+        def combined_callback(model, i, t, callback_kwargs):
+            nonlocal stop_idx
+            if stop_signal and stop_idx is None:
+                stop_idx = i
+            if i == stop_idx:
+                model._interrupt = True
+            callback_kwargs = decode_tensors(model, i, t, callback_kwargs)
+
+            progress((i + 1) / num_inference_steps, f"Step {i+1}/{num_inference_steps}")
+
+            return callback_kwargs
+
         images = model(prompt, negative_prompt=negative_prompt, num_inference_steps=num_inference_steps,
-                       guidance_scale=cfg_scale, width=width, height=height, generator=generator, clip_skip=clip_skip, num_images_per_prompt=num_images_per_prompt).images[0]
+                       guidance_scale=cfg_scale, width=width, height=height, generator=generator, clip_skip=clip_skip,
+                       num_images_per_prompt=num_images_per_prompt, callback_on_step_end=combined_callback, callback_on_step_end_tensor_inputs=["latents"]).images[0]
 
         image_paths = []
+        gif_images = []
         for i, image in enumerate(images):
             today = datetime.now().date()
             image_dir = os.path.join('outputs', f"StableDiffusion_{today.strftime('%Y%m%d')}")
@@ -1553,10 +1610,26 @@ def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, mo
             image.save(image_path, format=output_format.upper())
             image_paths.append(image_path)
 
-        return image_paths, "Image generation successful"
+        for i in range(num_inference_steps):
+            if os.path.exists(f"temp/{i}.png"):
+                gif_images.append(imageio.imread(f"temp/{i}.png"))
+
+        if gif_images:
+            gif_filename = f"txt2img_process_{datetime.now().strftime('%Y%m%d_%H%M%S')}.gif"
+            gif_path = os.path.join(image_dir, gif_filename)
+            imageio.mimsave(gif_path, gif_images, duration=0.1)
+        else:
+            gif_path = None
+
+        for i in range(num_inference_steps):
+            if os.path.exists(f"temp/{i}.png"):
+                os.remove(f"temp/{i}.png")
+
+        return image_paths, [gif_path] if gif_path else [], f"Images generated successfully. Seed used: {seed}"
 
     except Exception as e:
-        return None, str(e)
+        return None, None, str(e)
+
     finally:
         del model
         flush()
@@ -1999,7 +2072,8 @@ sd_generate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_sd_lora_models(), label=_("LORA Model (optional)", lang)),
         gr.Textbox(label=_("LoRA Scales", lang)),
         gr.Radio(choices=["Diffusers", "Safetensors"], value="Diffusers", label=_("Model Method", lang)),
-        gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang))
+        gr.Radio(choices=["SD", "SDXL"], value="SD", label=_("Model Type", lang)),
+        gr.Button(value=_("Stop generation", lang), interactive=True, variant="stop")
     ],
     additional_inputs=[
         gr.Textbox(label=_("Prompt", lang), type="text"),
@@ -2024,6 +2098,8 @@ sd_generate_interface = gr.Interface(
     additional_inputs_accordion=gr.Accordion(label=_("StableDiffusion Settings", lang), open=False),
     outputs=[
         gr.Gallery(label=_("Generated images", lang), elem_id="gallery", columns=[2], rows=[2], object_fit="contain", height="auto"),
+        gr.Gallery(label=_("Generation process", lang), elem_id="process_gallery", columns=[2], rows=[2],
+                   object_fit="contain", height="auto"),
         gr.Textbox(label=_("Message", lang), type="text"),
     ],
     title=_("NeuroTrainerWebUI (ALPHA) - StableDiffusion-Generate", lang),
@@ -2162,6 +2238,8 @@ with gr.TabbedInterface([
                        tab_names=[_("Wiki", lang), _("ModelDownloader", lang), _("Settings", lang), _("System", lang)])
 ],
     tab_names=[_("LLM", lang), _("StableDiffusion", lang), _("Interface", lang)], theme=theme) as app:
+    sd_generate_interface.input_components[6].click(stop_generation, [], [], queue=False)
+
     reload_button = gr.Button(_("Reload interface", lang))
 
     close_button = gr.Button(_("Close terminal", lang))

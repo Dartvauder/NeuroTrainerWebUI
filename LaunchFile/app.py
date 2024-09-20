@@ -341,6 +341,24 @@ def get_available_sd_datasets():
     return sd_available_datasets
 
 
+def get_available_audio_datasets():
+    datasets_dir = "datasets/audio"
+    os.makedirs(datasets_dir, exist_ok=True)
+    return [d for d in os.listdir(datasets_dir) if os.path.isdir(os.path.join(datasets_dir, d))]
+
+
+def get_available_audio_models():
+    models_dir = "models/audio"
+    os.makedirs(models_dir, exist_ok=True)
+    return [m for m in os.listdir(models_dir) if os.path.isdir(os.path.join(models_dir, m))]
+
+
+def get_available_finetuned_audio_models():
+    models_dir = "finetuned-models/audio"
+    os.makedirs(models_dir, exist_ok=True)
+    return [m for m in os.listdir(models_dir) if os.path.isdir(os.path.join(models_dir, m))]
+
+
 def reload_model_lists():
     llm_models = get_available_llm_models()
     llm_lora_models = get_available_llm_lora_models()
@@ -351,15 +369,19 @@ def reload_model_lists():
     sd_lora_models = get_available_sd_lora_models()
     finetuned_sd_models = get_available_finetuned_sd_models()
     sd_datasets = get_available_sd_datasets()
+    audio_datasets = get_available_audio_datasets()
+    audio_models = get_available_audio_models()
+    finetuned_audio_models = get_available_finetuned_audio_models()
 
     return [
         llm_models, llm_lora_models, finetuned_llm_models, llm_datasets,
-        sd_models, sd_vae_models, sd_lora_models, finetuned_sd_models, sd_datasets
+        sd_models, sd_vae_models, sd_lora_models, finetuned_sd_models, sd_datasets,
+        audio_datasets, audio_models, finetuned_audio_models
     ]
 
 
 def reload_interface():
-    updated_lists = reload_model_lists()[:8]
+    updated_lists = reload_model_lists()[:11]
     return [gr.Dropdown(choices=list) for list in updated_lists]
 
 
@@ -2316,8 +2338,8 @@ audio_dataset_interface = gr.Interface(
 audio_finetune_interface = gr.Interface(
     fn=finetune_audio_model,
     inputs=[
-        gr.Dropdown(choices=lambda: os.listdir(os.path.join("datasets", "audio")), label=_("Dataset Folder", lang)),
-        gr.Dropdown(choices=lambda: os.listdir(os.path.join("models", "audio")), label=_("Model Folder", lang)),
+        gr.Dropdown(choices=get_available_audio_datasets(), label=_("Dataset Folder", lang)),
+        gr.Dropdown(choices=get_available_audio_models(), label=_("Model Folder", lang)),
         gr.Textbox(label=_("Output Model Name", lang))
     ],
     outputs=[
@@ -2334,7 +2356,7 @@ audio_finetune_interface = gr.Interface(
 audio_generate_interface = gr.Interface(
     fn=generate_audio,
     inputs=[
-        gr.Dropdown(choices=lambda: os.listdir(os.path.join("finetuned-models", "audio")), label=_("Model Folder", lang)),
+        gr.Dropdown(choices=get_available_finetuned_audio_models(), label=_("Model Folder", lang)),
         gr.Textbox(label=_("Prompt", lang)),
         gr.Textbox(label=_("Negative Prompt", lang))
     ],
@@ -2343,7 +2365,8 @@ audio_generate_interface = gr.Interface(
         gr.Slider(minimum=0.1, maximum=30.0, value=8, step=0.1, label=_("Guidance Scale", lang)),
         gr.Slider(minimum=0.0, maximum=59.0, value=0.0, step=0.1, label=_("Audio Start (s)", lang)),
         gr.Slider(minimum=0.1, maximum=60.0, value=10.0, step=0.1, label=_("Audio End (s)", lang)),
-        gr.Slider(minimum=1, maximum=10, value=3, step=1, label=_("Num Waveforms per Prompt", lang))
+        gr.Slider(minimum=1, maximum=10, value=3, step=1, label=_("Num Waveforms per Prompt", lang)),
+        gr.Textbox(label=_("Seed (optional)", lang), value="")
     ],
     additional_inputs_accordion=gr.Accordion(label=_("StableAudio Settings", lang), open=False),
     outputs=[
@@ -2525,9 +2548,12 @@ with gr.TabbedInterface([
         sd_generate_interface.input_components[0],
         sd_generate_interface.input_components[1],
         sd_generate_interface.input_components[2],
+        audio_finetune_interface.input_components[0],
+        audio_finetune_interface.input_components[1],
+        audio_generate_interface.input_components[0],
     ]
 
-    reload_button.click(reload_interface, outputs=dropdowns_to_update[:8])
+    reload_button.click(reload_interface, outputs=dropdowns_to_update[:11])
 
     github_link = gr.HTML(
         '<div style="text-align: center; margin-top: 20px;">'

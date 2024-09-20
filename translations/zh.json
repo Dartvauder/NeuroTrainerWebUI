@@ -16,7 +16,6 @@
   "Learning rate": "学习率",
   "Weight decay": "权重衰减",
   "Warmup steps": "预热步数",
-  "Block size": "块大小",
   "Gradient accumulation steps": "梯度累积步数",
   "Adam beta 1": "Adam beta 1",
   "Adam beta 2": "Adam beta 2",
@@ -156,6 +155,14 @@
   "Online Wiki": "在线维基",
   "Local Wiki": "本地维基",
   "Wiki Content": "维基内容",
+  "Momentum": "动量",
+  "Optimizer": "优化器",
+  "Gradient clip value": "梯度裁剪值",
+  "L1 regularization": "L1正则化",
+  "L2 regularization": "L2正则化",
+  "Resume from checkpoint": "从检查点恢复",
+  "Max sequence length": "最大序列长度",
+  "LLM-Finetune Settings": "LLM微调设置",
   "NeuroTrainerWebUI (ALPHA) - Wiki": "NeuroTrainerWebUI（测试版） - 维基",
   "This interface displays the Wiki content from the specified URL or local file.": "此界面显示来自指定URL或本地文件的维基内容。"
 }

@@ -71,6 +71,7 @@ AutoModelForCausalLM = lazy_import('transformers', 'AutoModelForCausalLM')
 AutoTokenizer = lazy_import('transformers', 'AutoTokenizer')
 DataCollatorForLanguageModeling = lazy_import('transformers', 'DataCollatorForLanguageModeling')
 Trainer = lazy_import('transformers', 'Trainer')
+TrainerCallback = lazy_import('transformers', 'TrainerCallback')
 TrainingArguments = lazy_import('transformers', 'TrainingArguments')
 
 # Diffusers import
@@ -340,6 +341,24 @@ def reload_interface():
     return [gr.Dropdown(choices=list) for list in updated_lists]
 
 
+def get_memory_usage():
+    cpu_mem = psutil.virtual_memory().percent
+    gpu_mem = torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated() * 100 if torch.cuda.is_available() else 0
+    return cpu_mem, gpu_mem
+
+
+class MemoryMonitorCallback(TrainerCallback):
+    def __init__(self, print_every=1):
+        self.print_every = print_every
+
+    def on_step_end(self, args, state, control, **kwargs):
+        if state.global_step % self.print_every == 0:
+            cpu_mem, gpu_mem = get_memory_usage()
+            print(f"\nStep {state.global_step}:")
+            print(f"CPU Memory: {cpu_mem:.2f}%")
+            print(f"GPU Memory: {gpu_mem:.2f}%")
+
+
 def load_model_and_tokenizer(model_name, finetuned=False):
     if finetuned:
         model_path = os.path.join("finetuned-models/llm/full", model_name)
@@ -373,7 +392,9 @@ def create_llm_dataset(existing_file, file_name, instruction, input_text, output
 
 
 def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, epochs, batch_size, learning_rate,
-                 weight_decay, warmup_steps, block_size, grad_accum_steps, adam_beta1, adam_beta2, adam_epsilon, lr_scheduler_type, freeze_layers, lora_r, lora_alpha, lora_dropout, use_xformers=False):
+                 weight_decay, momentum, warmup_steps, grad_accum_steps, adam_beta1, adam_beta2, adam_epsilon,
+                 lr_scheduler_type, freeze_layers, lora_r, lora_alpha, lora_dropout, use_xformers,
+                 optimizer_type, gradient_clip_val, l1_reg, l2_reg, resume_from_checkpoint, max_seq_length):
     model, tokenizer = load_model_and_tokenizer(model_name)
     if model is None or tokenizer is None:
         return "Error loading model and tokenizer. Please check the model path.", None
@@ -389,25 +410,21 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
 
     dataset_path = os.path.join("datasets/llm", dataset_file)
     try:
-        try:
-            train_dataset = load_dataset('json', data_files=dataset_path)
-            train_dataset = train_dataset['train']
+        train_dataset = load_dataset('json', data_files=dataset_path)
+        train_dataset = train_dataset['train']
 
-            def process_examples(examples):
-                input_texts = examples['input'] if 'input' in examples else [''] * len(examples['instruction'])
-                instruction_texts = examples['instruction']
-                output_texts = examples['output']
+        def process_examples(examples):
+            input_texts = examples['input'] if 'input' in examples else [''] * len(examples['instruction'])
+            instruction_texts = examples['instruction']
+            output_texts = examples['output']
 
-                texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
-                         input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
-                return tokenizer(texts, truncation=True, padding='max_length', max_length=block_size)
+            texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
+                     input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
+            return tokenizer(texts, truncation=True, padding='max_length', max_length=max_seq_length)
 
-            train_dataset = train_dataset.map(process_examples, batched=True,
-                                              remove_columns=['input', 'instruction', 'output'])
-            train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
-        except Exception as e:
-            print(f"Error loading dataset: {e}")
-            return f"Error loading dataset. Please check the dataset path and format. Error: {e}", None
+        train_dataset = train_dataset.map(process_examples, batched=True,
+                                          remove_columns=['input', 'instruction', 'output'])
+        train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
 
         data_collator = DataCollatorForLanguageModeling().DataCollatorForLanguageModeling(tokenizer=tokenizer,
                                                                                           mlm=False)
@@ -436,8 +453,17 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
             adam_beta1=adam_beta1,
             adam_beta2=adam_beta2,
             adam_epsilon=adam_epsilon,
-            lr_scheduler_type=lr_scheduler_type
+            lr_scheduler_type=lr_scheduler_type,
+            max_grad_norm=gradient_clip_val,
+            resume_from_checkpoint=resume_from_checkpoint
         )
+
+        if optimizer_type == "AdamW":
+            optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        elif optimizer_type == "SGD":
+            optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+        else:
+            optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
         if use_xformers:
             try:
@@ -465,15 +491,25 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
                     for param in layer.parameters():
                         param.requires_grad = False
 
+        if l1_reg > 0 or l2_reg > 0:
+            for param in model.parameters():
+                if param.requires_grad:
+                    if l1_reg > 0:
+                        training_args.weight_decay += l1_reg * torch.norm(param, p=1)
+                    if l2_reg > 0:
+                        training_args.weight_decay += l2_reg * torch.norm(param, p=2)
+
         trainer = Trainer().Trainer(
             model=model,
             args=training_args,
             data_collator=data_collator,
             train_dataset=train_dataset,
+            optimizers=(optimizer, None),
+            callbacks=[MemoryMonitorCallback(print_every=1)]
         )
 
         try:
-            trainer.train()
+            trainer.train(resume_from_checkpoint=resume_from_checkpoint)
             trainer.save_model()
             tokenizer.save_pretrained(save_path)
             print("Finetuning completed successfully.")
@@ -1724,8 +1760,8 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=4, label=_("Batch size", lang)),
         gr.Number(value=3e-5, label=_("Learning rate", lang)),
         gr.Number(value=0.01, label=_("Weight decay", lang)),
+        gr.Number(value=0.9, label=_("Momentum", lang)),
         gr.Number(value=100, label=_("Warmup steps", lang)),
-        gr.Number(value=128, label=_("Block size", lang)),
         gr.Number(value=1, label=_("Gradient accumulation steps", lang)),
         gr.Number(value=0.9, label=_("Adam beta 1", lang)),
         gr.Number(value=0.999, label=_("Adam beta 2", lang)),
@@ -1737,7 +1773,13 @@ llm_finetune_interface = gr.Interface(
         gr.Number(value=16, label=_("LORA r", lang)),
         gr.Number(value=32, label=_("LORA alpha", lang)),
         gr.Number(value=0.05, label=_("LORA dropout", lang)),
-        gr.Checkbox(label=_("Use xformers", lang), value=False)
+        gr.Checkbox(label=_("Use xformers", lang), value=False),
+        gr.Dropdown(choices=["Adam", "AdamW", "SGD"], value="Adam", label=_("Optimizer", lang)),
+        gr.Number(value=1.0, label=_("Gradient clip value", lang)),
+        gr.Number(value=0.0, label=_("L1 regularization", lang)),
+        gr.Number(value=0.0, label=_("L2 regularization", lang)),
+        gr.Textbox(label=_("Resume from checkpoint", lang), type="text"),
+        gr.Number(value=512, label=_("Max sequence length", lang)),
     ],
     additional_inputs_accordion=gr.Accordion(label=_("LLM-Finetune Settings", lang), open=False),
     outputs=[

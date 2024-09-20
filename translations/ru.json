@@ -16,7 +16,6 @@
   "Learning rate": "Скорость обучения",
   "Weight decay": "Затухание весов",
   "Warmup steps": "Шаги разогрева",
-  "Block size": "Размер блока",
   "Gradient accumulation steps": "Шаги накопления градиента",
   "Adam beta 1": "Адам бета 1",
   "Adam beta 2": "Адам бета 2",
@@ -156,6 +155,14 @@
   "Online Wiki": "Онлайн вики",
   "Local Wiki": "Локальная вики",
   "Wiki Content": "Содержание вики",
+  "Momentum": "Момент",
+  "Optimizer": "Оптимизатор",
+  "Gradient clip value": "Значение отсечения градиента",
+  "L1 regularization": "L1 регуляризация",
+  "L2 regularization": "L2 регуляризация",
+  "Resume from checkpoint": "Возобновить с чекпоинта",
+  "Max sequence length": "Максимальная длина последовательности",
+  "LLM-Finetune Settings": "Настройки дообучения LLM",
   "NeuroTrainerWebUI (ALPHA) - Wiki": "NeuroTrainerWebUI (АЛЬФА) - Вики",
   "This interface displays the Wiki content from the specified URL or local file.": "Этот интерфейс отображает содержание вики из указанного URL или локального файла."
 }

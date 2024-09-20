@@ -740,17 +740,17 @@ def quantize_llm(model_name, quantization_type):
 
 
 def generate_text(model_name, lora_model_name, model_type, prompt, max_tokens, temperature, top_p, top_k, output_format):
+    if not model_name:
+        return None, "Please select the model"
+
+    if lora_model_name and not model_name:
+        return None, "Please select the original model"
+
     try:
         if model_type == "transformers":
             model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
             if model is None or tokenizer is None:
                 return None, "Error loading model and tokenizer. Please check the model path."
-
-            if not model_name:
-                return None, "Please select the model"
-
-            if lora_model_name and not model_name:
-                return None, "Please select the original model"
 
             if lora_model_name:
                 lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
@@ -809,6 +809,10 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_tokens, t
                 llm = Llama().Llama(model_path=model_path, n_ctx=max_tokens, n_parts=-1, seed=-1, f16_kv=True,
                                     logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1,
                                     suffix=None)
+
+                if lora_model_name:
+                    lora_model_path = os.path.join("finetuned-models/llm/lora", lora_model_name)
+                    llm = Llama().Llama(model_path, lora_path=lora_model_path)
 
                 output = llm(prompt, max_tokens=max_tokens, top_k=top_k, top_p=top_p, temperature=temperature,
                              stop=None, echo=False)

@@ -1512,45 +1512,43 @@ def evaluate_sd(model_name, model_scheduler, vae_model_name, lora_model_names, l
 
 def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safetensors):
     model_path = os.path.join("finetuned-models/sd/full", model_name)
-    output_path = os.path.join("finetuned-models/sd/full")
+    output_dir = os.path.join("finetuned-models/sd/full")
+    os.makedirs(output_dir, exist_ok=True)
 
     try:
-        if model_type == "SD":
-            try:
-                args = [
-                    "py",
-                    "trainer-scripts/sd/convert_diffusers_to_original_stable_diffusion.py",
-                    "--model_path", model_path,
-                    "--checkpoint_path", output_path,
-                ]
-                if use_half:
-                    args.append("--half")
-                if use_safetensors:
-                    args.append("--use_safetensors")
+        try:
+            if model_type == "SD":
+                script_path = "trainer-scripts/sd/convert_diffusers_to_original_stable_diffusion.py"
+            elif model_type == "SDXL":
+                script_path = "trainer-scripts/sd/convert_diffusers_to_original_sdxl.py"
+            else:
+                return f"Invalid model type: {model_type}"
 
-                subprocess.run(args, check=True)
+            output_file = f"{model_name}_converted{'_fp16' if use_half else ''}.{'safetensors' if use_safetensors else 'ckpt'}"
+            output_path = os.path.abspath(os.path.join(output_dir, output_file))
 
-                return f"Model successfully converted to single file and saved to {output_path}"
-            except subprocess.CalledProcessError as e:
-                return f"Error converting model to single file: {e}"
-        elif model_type == "SDXL":
-            try:
-                args = [
-                    "py",
-                    "trainer-scripts/sd/convert_diffusers_to_original_sdxl.py",
-                    "--model_path", model_path,
-                    "--checkpoint_path", output_path,
-                ]
-                if use_half:
-                    args.append("--half")
-                if use_safetensors:
-                    args.append("--use_safetensors")
+            args = [
+                "py",
+                script_path,
+                "--model_path", model_path,
+                "--checkpoint_path", output_path,
+            ]
+            if use_half:
+                args.append("--half")
+            if use_safetensors:
+                args.append("--use_safetensors")
 
-                subprocess.run(args, check=True)
+            subprocess.run(args, check=True, capture_output=True, text=True)
 
-                return f"Model successfully converted to single file and saved to {output_path}"
-            except subprocess.CalledProcessError as e:
-                return f"Error converting model to single file: {e}"
+            if os.path.exists(output_path):
+                return f"Model successfully converted and saved to {output_path}"
+            else:
+                return f"Conversion completed, but the output file was not found at {output_path}"
+
+        except subprocess.CalledProcessError as e:
+            return f"Error converting model: {e.stderr}"
+        except Exception as e:
+            return f"Unexpected error: {str(e)}"
 
     except Exception as e:
         return str(e)

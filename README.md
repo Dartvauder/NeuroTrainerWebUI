@@ -5,27 +5,30 @@
 * Work in progress! (ALPHA)
 * English | [Русский](/Readmes/README_RU.md) | [漢語](/Readmes/README_ZH.md) 
 
+
 ## Description:
 
-A simple and convenient interface for using of various neural network models. You can create datasets, finetune, evaluate and generate with LLM and StableDiffusion, using various hyperparameters. You can also check the wiki, download the LLM and StableDiffusion models, change the application settings inside the interface and check system sensors
+A simple and convenient interface for using of various neural network models. You can create datasets, finetune, evaluate and generate with LLM, StableDiffusion and StableAudio using various hyperparameters. You can also check the wiki, download the LLM, StableDiffusion and StableAudio models, change the application settings inside the interface and check system sensors
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: <img width="1118" alt="1" src="https://github.com/user-attachments/assets/683e7313-d6b2-45e8-8cbd-b919d9936123">
+### LLM: <img width="1118" alt="1" src="https://github.com/user-attachments/assets/4d03a953-57ec-4921-8bc2-c967f840a7f3">
 
-### StableDiffusion: <img width="1114" alt="2" src="https://github.com/user-attachments/assets/1ac84a3f-ad6f-44ad-bacf-fc491fbaadd6">
+### StableDiffusion: <img width="1114" alt="2" src="https://github.com/user-attachments/assets/fad13e5a-2972-40c8-a7d2-11efb0e126bb">
 
-### Interface: <img width="1117" alt="3" src="https://github.com/user-attachments/assets/dfb8a606-6d11-4104-83fc-51a74a0b258a">
+### StableAudio: <img width="1118" alt="3" src="https://github.com/user-attachments/assets/b8dea5af-6011-4a9e-87e5-9ba6af774fa9">
+
+### Interface: <img width="1118" alt="4" src="https://github.com/user-attachments/assets/de6a0d26-c6dc-437f-9b21-3d05bbe36e44">
 
 ## Features:
 
 * Easy installation via install.bat(Windows) or install.sh(Linux)
 * Flexible and optimized interface (By Gradio)
-* Authentication via admin:admin (You can enter your login details in the GradioAuth.txt file)
 * Support for Transformers: finetune, evaluate, quantize and generate (LLM)
 * Support for Diffusers and Safetensors: finetune, evaluate, conversion and generate (StableDiffusion)
+* Support for StableAudio: finetune and generate
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
-* Ability to create a dataset (For LLM and StableDiffusion)
+* Ability to create a dataset (For LLM, StableDiffusion and StableAudio models)
 * Wiki
 * ModelDownloader (For LLM and StableDiffusion)
 * Application settings
@@ -87,6 +90,8 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 * `gradio` - https://github.com/gradio-app/gradio
 * `transformers` - https://github.com/huggingface/transformers
 * `diffusers` - https://github.com/huggingface/diffusers
+* `llama.cpp-python` - https://github.com/abetlen/llama-cpp-python
+* `stable-diffusion-cpp-python` - https://github.com/william-murray1204/stable-diffusion-cpp-python
 
 ## Third Party Licenses:
 
@@ -100,10 +105,13 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 * [CLIP](https://huggingface.co/openai/clip-vit-base-patch16)
 * [BERT](https://huggingface.co/google-bert/bert-base-uncased)
 * [LLAMA.CPP](https://github.com/ggerganov/llama.cpp/blob/master/LICENSE)
+* [StableAudioOpen](https://huggingface.co/stabilityai/stable-audio-open-1.0)
+* [BLIP](https://huggingface.co/Salesforce/blip-image-captioning-large)
 
 #### These third-party repository codes are also used in my project:
 
 * [Diffusers scripts for training SD](https://github.com/huggingface/diffusers/tree/main/examples/text_to_image)
+* [StableAudioTools for training StableAudio](https://github.com/Stability-AI/stable-audio-tools)
 
 ## Donation
 

@@ -1,6 +1,6 @@
 ## How to use:
 
-#### Interface has six tabs: LLM, StableDiffusion, Wiki, ModelDownloader, Settings and System. Select the one you need and follow the instructions below 
+#### Interface has four main tabs: LLM, StableDiffusion, StableAudio and Interface. Select the one you need and follow the instructions below 
 
 ### LLM - has five sub-tabs:
 
@@ -83,15 +83,39 @@
 6) Set up the models parameters to generate
 7) Click the `Submit` button to receive the generated image
 
+### StableAudio - has three sub-tabs:
+
+#### Dataset:
+
+* Here you can create a new or expand an existing dataset
+* Datasets are saved in a folder *datasets/audio*
+
+#### Finetune:
+
+1) First upload your models to the folder: *models/audio*
+2) Upload your dataset to the folder: *datasets/audio*
+3) Select your model and dataset from the drop-down lists
+4) Write a name for the model
+5) Click the `Submit` button to receive the finetuned model
+
+#### Generate:
+
+1) First upload your models to the folder: *finetuned-models/audio*
+2) Select your models from the drop-down list
+3) Enter your prompt
+4) Set up the models parameters to generate
+5) Click the `Submit` button to receive the generated audio
+
 ### Wiki:
 
 * Here you can view online or offline wiki of project
 
 ### ModelDownloader:
 
-* Here you can download `LLM` and `StableDiffusion` models. Just choose the model from the drop-down list and click the `Submit` button
+* Here you can download `LLM`, `StableDiffusion` and `StableAudio` models. Just choose the model from the drop-down list and click the `Submit` button
 #### `LLM` models are downloaded here: *models/llm*
 #### `StableDiffusion` models are downloaded here: *models/sd*
+#### `StableAudio` models are downloaded here: *models/audio*
 
 ### Settings: 
 
@@ -111,5 +135,5 @@
 
 ## Where can i get models and datasets?
 
-* LLM and StableDiffusion models can be taken from [HuggingFace](https://huggingface.co/models) or from ModelDownloader inside interface
-* LLM and StableDiffusion datasets can be taken from [HuggingFace](https://huggingface.co/datasets) or you can create own datasets inside interface
+* LLM, StableDiffusion and StableAudio models can be taken from [HuggingFace](https://huggingface.co/models) or from ModelDownloader inside interface
+* LLM, StableDiffusion and StableAudio datasets can be taken from [HuggingFace](https://huggingface.co/datasets) or you can create own datasets inside interface

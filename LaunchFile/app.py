@@ -76,6 +76,8 @@ DataCollatorForLanguageModeling = lazy_import('transformers', 'DataCollatorForLa
 Trainer = lazy_import('transformers', 'Trainer')
 TrainerCallback = lazy_import('transformers', 'TrainerCallback')
 TrainingArguments = lazy_import('transformers', 'TrainingArguments')
+BlipProcessor = lazy_import('transformers', 'BlipProcessor')
+BlipForConditionalGeneration = lazy_import('transformers', 'BlipForConditionalGeneration')
 
 # Diffusers import
 StableDiffusionPipeline = lazy_import('diffusers', 'StableDiffusionPipeline')
@@ -274,6 +276,22 @@ def get_available_llm_datasets():
             llm_available_datasets.append(dataset_file)
 
     return llm_available_datasets
+
+
+def initialize_blip_model():
+    model_path = "trainer-scripts/sd/blip-image-captioning-large"
+    if not os.path.exists(model_path):
+        print("Downloading BLIP...")
+        os.makedirs(model_path, exist_ok=True)
+        processor = BlipProcessor().BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
+        model = BlipForConditionalGeneration().BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large", torch_dtype=torch.float16)
+        processor.save_pretrained(model_path)
+        model.save_pretrained(model_path)
+        print("BLIP downloaded")
+    else:
+        processor = BlipProcessor().BlipProcessor.from_pretrained(model_path)
+        model = BlipForConditionalGeneration().BlipForConditionalGeneration.from_pretrained(model_path, torch_dtype=torch.float16)
+    return processor, model.to("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def get_available_sd_models():
@@ -957,7 +975,7 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_tokens, t
     yield chat_history
 
 
-def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, prompt_text):
+def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, prompt_text, enable_blip, blip_mode):
     if existing_dataset:
         dataset_dir = os.path.join("datasets", "sd", existing_dataset, "train")
     else:
@@ -967,16 +985,32 @@ def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, 
 
     metadata_file = os.path.join(dataset_dir, "metadata.jsonl")
 
+    processor, blip_model = initialize_blip_model() if enable_blip else (None, None)
+
     with open(metadata_file, "a") as f:
         for i, image_file in enumerate(image_files):
             file_name = f"{file_prefix}-{i + 1}.jpg"
             image_path = os.path.join(dataset_dir, file_name)
-            image = Image.open(image_file.name)
+            image = Image.open(image_file.name).convert('RGB')
             image.save(image_path)
+
+            if enable_blip:
+                inputs = processor(image, return_tensors="pt").to(blip_model.device)
+                if blip_mode == "BLIP-cond":
+                    inputs = processor(image, prompt_text, return_tensors="pt").to(blip_model.device)
+                    out = blip_model.generate(**inputs)
+                    blip_caption = processor.decode(out[0], skip_special_tokens=True)
+                else:
+                    out = blip_model.generate(**inputs)
+                    blip_caption = processor.decode(out[0], skip_special_tokens=True)
+
+                full_prompt = f"{prompt_text} {blip_caption}".strip()
+            else:
+                full_prompt = prompt_text
 
             metadata = {
                 "file_name": file_name,
-                "text": prompt_text
+                "text": full_prompt
             }
             f.write(json.dumps(metadata) + "\n")
 
@@ -1959,12 +1993,21 @@ def settings_interface(language, share_value, debug_value, monitoring_value, aut
     return message
 
 
-def download_model(model_name_llm, model_name_sd):
-    if not model_name_llm and not model_name_sd:
-        return "Please select a model to download"
+def download_model(model_name_llm, model_name_sd, custom_model_link):
+    if not model_name_llm and not model_name_sd and not custom_model_link:
+        return "Please select a model to download or provide a custom link"
 
-    if model_name_llm and model_name_sd:
-        return "Please select one model type for downloading"
+    if (model_name_llm and model_name_sd) or (model_name_llm and custom_model_link) or (model_name_sd and custom_model_link):
+        return "Please select only one option for downloading"
+
+    if custom_model_link:
+        try:
+            model_name = custom_model_link.split("/")[-1]
+            model_path = os.path.join("models/audio", model_name)
+            Repo.clone_from(f"https://huggingface.co/{custom_model_link}", model_path)
+            return f"Custom model {model_name} downloaded successfully!"
+        except Exception as e:
+            return f"Error downloading custom model: {str(e)}"
 
     if model_name_llm:
         model_url = ""
@@ -2164,7 +2207,9 @@ sd_dataset_interface = gr.Interface(
         gr.Dropdown(choices=get_available_sd_datasets(), label=_("Existing Dataset (optional)", lang)),
         gr.Textbox(label=_("Dataset Name", lang)),
         gr.Textbox(label=_("Files Name", lang)),
-        gr.Textbox(label=_("Prompt Text", lang))
+        gr.Textbox(label=_("Prompt Text", lang)),
+        gr.Checkbox(label=_("Enable BLIP", lang), value=False),
+        gr.Radio(choices=["BLIP-cond", "BLIP-uncond"], value="BLIP-cond", label=_("BLIP mode", lang))
     ],
     outputs=[
         gr.Textbox(label=_("Status", lang))
@@ -2409,6 +2454,7 @@ model_downloader_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=[None, "StarlingLM(Transformers7B)", "OpenChat3.6(Llama8B.Q4)"], label=_("Download LLM model", lang), value=None),
         gr.Dropdown(choices=[None, "Dreamshaper8(SD1.5)", "RealisticVisionV4.0(SDXL)"], label=_("Download StableDiffusion model", lang), value=None),
+        gr.Textbox(label=_("Download custom Stable Audio model", lang), placeholder="stabilityai/stable-audio-open-1.0")
     ],
     outputs=[
         gr.Textbox(label=_("Message", lang), type="text"),

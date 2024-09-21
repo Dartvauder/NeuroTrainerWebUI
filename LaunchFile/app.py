@@ -671,7 +671,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, system_prompt, max_l
                     'labels': assistant_outputs}
 
         eval_dataset = eval_dataset.map(process_examples, batched=True,
-                                        remove_columns=['system', 'user', 'assistant'])
+                                        remove_columns=['user', 'assistant'])
         eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
     except Exception as e:
         print(f"Error loading dataset: {e}")

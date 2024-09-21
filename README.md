@@ -14,7 +14,7 @@ The goal of the project - to create the easiest possible application to finetune
 
 ### LLM: <img width="1118" alt="1" src="https://github.com/user-attachments/assets/4d03a953-57ec-4921-8bc2-c967f840a7f3">
 
-### StableDiffusion: <img width="1114" alt="2" src="https://github.com/user-attachments/assets/fad13e5a-2972-40c8-a7d2-11efb0e126bb">
+### StableDiffusion: <img width="1116" alt="2" src="https://github.com/user-attachments/assets/f4144c43-968f-4a05-b63d-801708953498">
 
 ### StableAudio: <img width="1118" alt="3" src="https://github.com/user-attachments/assets/b8dea5af-6011-4a9e-87e5-9ba6af774fa9">
 

@@ -975,7 +975,7 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_tokens, t
     yield chat_history
 
 
-def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, prompt_text, enable_blip, blip_mode):
+def create_sd_dataset(image_files, resize_option, custom_width, custom_height, existing_dataset, dataset_name, file_prefix, prompt_text, enable_blip, blip_mode):
     if existing_dataset:
         dataset_dir = os.path.join("datasets", "sd", existing_dataset, "train")
     else:
@@ -992,6 +992,21 @@ def create_sd_dataset(image_files, existing_dataset, dataset_name, file_prefix, 
             file_name = f"{file_prefix}-{i + 1}.jpg"
             image_path = os.path.join(dataset_dir, file_name)
             image = Image.open(image_file.name).convert('RGB')
+
+            if resize_option == "512":
+                new_size = (512, 512)
+            elif resize_option == "768":
+                new_size = (768, 768)
+            elif resize_option == "1024":
+                new_size = (1024, 1024)
+            elif resize_option == "custom":
+                new_size = (custom_width, custom_height)
+            else:
+                new_size = image.size
+
+            if new_size != image.size:
+                image = image.resize(new_size, Image.LANCZOS)
+
             image.save(image_path)
 
             if enable_blip:
@@ -2204,6 +2219,9 @@ sd_dataset_interface = gr.Interface(
     fn=create_sd_dataset,
     inputs=[
         gr.Files(label=_("Image Files", lang)),
+        gr.Radio(choices=["original", "512", "768", "1024", "custom"], value="original", label=_("Resize option", lang)),
+        gr.Slider(minimum=1, maximum=2048, value=512, step=1, label=_("Custom Width", lang)),
+        gr.Slider(minimum=1, maximum=2048, value=768, step=1, label=_("Custom Height", lang)),
         gr.Dropdown(choices=get_available_sd_datasets(), label=_("Existing Dataset (optional)", lang)),
         gr.Textbox(label=_("Dataset Name", lang)),
         gr.Textbox(label=_("Files Name", lang)),

@@ -13,7 +13,7 @@
 
 ### LLM: <img width="1115" alt="1ru" src="https://github.com/user-attachments/assets/d60252a6-18b1-40a3-a8bd-dd14420b4f37">
 
-### StableDiffusion: <img width="1115" alt="2ru" src="https://github.com/user-attachments/assets/892df01e-b557-4588-8601-c043383ea98b">
+### StableDiffusion: <img width="1116" alt="2ru" src="https://github.com/user-attachments/assets/e672f05f-50aa-48bb-b182-0247d4286339">
 
 ### StableAudio: <img width="1115" alt="3ru" src="https://github.com/user-attachments/assets/197f8c46-4056-44bf-bf65-f294b614aa76">
 

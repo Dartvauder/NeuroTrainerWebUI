@@ -1019,7 +1019,7 @@ def create_sd_dataset(image_files, resize_option, custom_width, custom_height, e
                     out = blip_model.generate(**inputs)
                     blip_caption = processor.decode(out[0], skip_special_tokens=True)
 
-                full_prompt = f"{prompt_text} {blip_caption}".strip()
+                full_prompt = blip_caption
             else:
                 full_prompt = prompt_text
 
@@ -1055,7 +1055,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 args = [
                     "accelerate", "launch", "trainer-scripts/sd/train_text_to_image.py",
                     f"--pretrained_model_name_or_path={model_path}",
-                    f"--train_data_dir={dataset_path}",
+                    f"--train_data_dir={dataset}",
                     f"--output_dir={output_dir}",
                     f"--resolution={resolution}",
                     f"--train_batch_size={train_batch_size}",
@@ -1081,7 +1081,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 args = [
                     "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_sdxl.py",
                     f"--pretrained_model_name_or_path={model_path}",
-                    f"--train_data_dir={dataset_path}",
+                    f"--train_data_dir={dataset}",
                     f"--output_dir={output_dir}",
                     f"--resolution={resolution}",
                     f"--train_batch_size={train_batch_size}",
@@ -1109,7 +1109,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 args = [
                     "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora.py",
                     f"--pretrained_model_name_or_path={model_path}",
-                    f"--train_data_dir={dataset_path}",
+                    f"--train_data_dir={dataset}",
                     f"--output_dir={output_dir}",
                     f"--resolution={resolution}",
                     f"--train_batch_size={train_batch_size}",
@@ -1136,7 +1136,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 args = [
                     "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora_sdxl.py",
                     f"--pretrained_model_name_or_path={model_path}",
-                    f"--train_data_dir={dataset_path}",
+                    f"--train_data_dir={dataset}",
                     f"--output_dir={output_dir}",
                     f"--resolution={resolution}",
                     f"--train_batch_size={train_batch_size}",

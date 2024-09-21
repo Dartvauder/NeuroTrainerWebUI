@@ -1053,7 +1053,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
             if model_type == "SD":
                 dataset = load_dataset("imagefolder", data_dir=dataset_path)
                 args = [
-                    "accelerate", "launch", "trainer-scripts/sd/train_text_to_image.py",
+                    "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image.py",
                     f"--pretrained_model_name_or_path={model_path}",
                     f"--train_data_dir={dataset}",
                     f"--output_dir={output_dir}",
@@ -1079,7 +1079,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
             elif model_type == "SDXL":
                 dataset = load_dataset("imagefolder", data_dir=dataset_path)
                 args = [
-                    "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_sdxl.py",
+                    "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image_sdxl.py",
                     f"--pretrained_model_name_or_path={model_path}",
                     f"--train_data_dir={dataset}",
                     f"--output_dir={output_dir}",
@@ -1107,7 +1107,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
             if model_type == "SD":
                 dataset = load_dataset("imagefolder", data_dir=dataset_path)
                 args = [
-                    "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora.py",
+                    "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image_lora.py",
                     f"--pretrained_model_name_or_path={model_path}",
                     f"--train_data_dir={dataset}",
                     f"--output_dir={output_dir}",
@@ -1134,7 +1134,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
             elif model_type == "SDXL":
                 dataset = load_dataset("imagefolder", data_dir=dataset_path)
                 args = [
-                    "accelerate", "launch", "trainer-scripts/sd/train_text_to_image_lora_sdxl.py",
+                    "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image_lora_sdxl.py",
                     f"--pretrained_model_name_or_path={model_path}",
                     f"--train_data_dir={dataset}",
                     f"--output_dir={output_dir}",

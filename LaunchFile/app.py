@@ -121,7 +121,7 @@ stop_signal = False
 
 
 def print_system_info():
-    print(f"NeuroSandboxWebUI")
+    print(f"NeuroTrainerWebUI")
     print(f"Python version: {sys.version}")
     print(f"Python executable: {sys.executable}")
     print(f"Platform: {sys.platform}")

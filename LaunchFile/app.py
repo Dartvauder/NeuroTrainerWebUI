@@ -779,10 +779,10 @@ def quantize_llm(model_name, quantization_type):
     try:
         os.chdir(llama_cpp_path)
 
-        subprocess.run(f"cmake -B build", shell=True, check=True)
+        subprocess.run(f"cmake -B build -DGGML_CUDA=ON", shell=True, check=True)
         subprocess.run(f"cmake --build build --config Release", shell=True, check=True)
 
-        subprocess.run(f"python convert.py {model_path}", shell=True, check=True)
+        subprocess.run(f"python convert_hf_to_gguf.py {model_path}", shell=True, check=True)
 
         input_model = os.path.join(model_path, "ggml-model-f16.ggml")
         output_model = os.path.join(model_path, f"ggml-model-{quantization_type}.ggml")

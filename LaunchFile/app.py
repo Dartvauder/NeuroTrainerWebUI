@@ -428,18 +428,18 @@ def load_model_and_tokenizer(model_name, finetuned=False):
         return None, None
 
 
-def create_llm_dataset(existing_file, file_name, instruction, input_text, output_text):
+def create_llm_dataset(existing_file, file_name, system_prompt, user_input, assistant_output):
     if existing_file:
         file_path = os.path.join("datasets", "llm", existing_file)
         with open(file_path, "r") as f:
             data = json.load(f)
-        data.append({"instruction": instruction, "input": input_text, "output": output_text})
+        data.append({"system": system_prompt, "user": user_input, "assistant": assistant_output})
         with open(file_path, "w") as f:
             json.dump(data, f, indent=2)
         return f"New column added to the existing file: {existing_file}"
     else:
         file_path = os.path.join("datasets", "llm", f"{file_name}.json")
-        data = [{"instruction": instruction, "input": input_text, "output": output_text}]
+        data = [{"system": system_prompt, "user": user_input, "assistant": assistant_output}]
         with open(file_path, "w") as f:
             json.dump(data, f, indent=2)
         return f"New dataset file created: {file_name}.json"
@@ -468,12 +468,13 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
         train_dataset = train_dataset['train']
 
         def process_examples(examples):
-            input_texts = examples['input'] if 'input' in examples else [''] * len(examples['instruction'])
-            instruction_texts = examples['instruction']
-            output_texts = examples['output']
+            system_prompts = examples['system']
+            user_inputs = examples['user']
+            assistant_outputs = examples['assistant']
 
-            texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
-                     input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
+            texts = [
+                f"<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n{assistant}<|im_end|>"
+                for system, user, assistant in zip(system_prompts, user_inputs, assistant_outputs)]
             return tokenizer(texts, truncation=True, padding='max_length', max_length=max_seq_length)
 
         train_dataset = train_dataset.map(process_examples, batched=True,
@@ -635,7 +636,7 @@ def plot_llm_evaluation_metrics(metrics):
     return fig
 
 
-def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_length, temperature, top_p, top_k):
+def evaluate_llm(model_name, lora_model_name, dataset_file, system_prompt, max_length, temperature, top_p, top_k):
     model_path = os.path.join("finetuned-models/llm/full", model_name)
     model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
     if model is None or tokenizer is None:
@@ -660,19 +661,17 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
         eval_dataset = eval_dataset['train']
 
         def process_examples(examples):
-            input_texts = examples['input'] if 'input' in examples else [''] * len(examples['instruction'])
-            instruction_texts = examples['instruction']
-            output_texts = examples['output']
+            user_inputs = examples['user']
+            assistant_outputs = examples['assistant']
 
-            texts = [f"{input_text}<sep>{instruction_text}<sep>{output_text}" for
-                     input_text, instruction_text, output_text in zip(input_texts, instruction_texts, output_texts)]
-            return {'input_ids': tokenizer(texts, truncation=True, padding='max_length', max_length=128)['input_ids'],
-                    'attention_mask': tokenizer(texts, truncation=True, padding='max_length', max_length=128)[
-                        'attention_mask'],
-                    'labels': output_texts}
+            texts = [f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n{assistant}<|im_end|>"
+                     for user, assistant in zip(user_inputs, assistant_outputs)]
+            return {'input_ids': tokenizer(texts, truncation=True, padding='max_length', max_length=512)['input_ids'],
+                    'attention_mask': tokenizer(texts, truncation=True, padding='max_length', max_length=512)['attention_mask'],
+                    'labels': assistant_outputs}
 
         eval_dataset = eval_dataset.map(process_examples, batched=True,
-                                        remove_columns=['input', 'instruction', 'output'])
+                                        remove_columns=['user', 'assistant'])
         eval_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
     except Exception as e:
         print(f"Error loading dataset: {e}")
@@ -680,10 +679,27 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
 
     try:
         references = eval_dataset['labels']
-        predictions = [generate_text(model_name, lora_model_name, "transformers",
-                                     user_input if user_input else tokenizer.decode(example['input_ids'],
-                                                                                    skip_special_tokens=True),
-                                     max_length, temperature, top_p, top_k, output_format='txt')[0] for example in eval_dataset]
+        predictions = []
+
+        for example in eval_dataset:
+            user_input = tokenizer.decode(example['input_ids'], skip_special_tokens=True)
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input},
+            ]
+            text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+
+            generated_ids = model.generate(
+                **model_inputs,
+                max_new_tokens=max_length,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+            )
+            generated_ids = generated_ids[:, len(model_inputs.input_ids[0]):]
+            prediction = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+            predictions.append(prediction)
 
         bert_model_name = "google-bert/bert-base-uncased"
         bert_repo_url = f"https://huggingface.co/{bert_model_name}"
@@ -780,7 +796,8 @@ def quantize_llm(model_name, quantization_type):
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
-def generate_text(model_name, lora_model_name, model_type, prompt, max_length, temperature, top_p, top_k, output_format):
+def generate_text(model_name, lora_model_name, model_type, system_prompt, user_input, max_length, temperature, top_p,
+                  top_k, output_format):
     if model_type == "transformers":
         model, tokenizer = load_model_and_tokenizer(model_name, finetuned=True)
         if model is None or tokenizer is None:
@@ -797,6 +814,12 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_length, t
             model = PeftModel.from_pretrained(model, lora_model_path)
 
         try:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input},
+            ]
+            prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
             input_ids = tokenizer.encode(prompt, return_tensors='pt')
             attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
             pad_token_id = tokenizer.eos_token_id
@@ -820,6 +843,7 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_length, t
             )
 
             generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+            generated_text = generated_text[len(prompt):]
 
             output_dir = "outputs/llm"
             os.makedirs(output_dir, exist_ok=True)
@@ -830,9 +854,9 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_length, t
 
             if output_format == "txt":
                 with open(output_path, "a", encoding="utf-8") as file:
-                    file.write(f"Human: {prompt}\nAI: {generated_text}\n")
+                    file.write(f"System: {system_prompt}\nHuman: {user_input}\nAI: {generated_text}\n")
             elif output_format == "json":
-                history = [{"Human": prompt, "AI": generated_text}]
+                history = [{"system": system_prompt, "human": user_input, "ai": generated_text}]
                 with open(output_path, "w", encoding="utf-8") as file:
                     json.dump(history, file, indent=2, ensure_ascii=False)
 
@@ -845,10 +869,13 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_length, t
         model_path = os.path.join("finetuned-models/llm/full", model_name)
 
         try:
+            llm = Llama().Llama(model_path=model_path, n_ctx=max_length, n_parts=-1, seed=-1, f16_kv=True,
+                                logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1,
+                                suffix=None)
 
-            llm = Llama().Llama(model_path=model_path, n_ctx=max_length, n_parts=-1, seed=-1, f16_kv=True, logits_all=False, vocab_only=False, use_mlock=False, n_threads=8, n_batch=1, suffix=None)
-
-            output = llm(prompt, max_tokens=max_length, top_k=top_k, top_p=top_p, temperature=temperature, stop=None, echo=False)
+            prompt = f"[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\n{user_input} [/INST]"
+            output = llm(prompt, max_tokens=max_length, top_k=top_k, top_p=top_p, temperature=temperature, stop=None,
+                         echo=False)
 
             generated_text = output['choices'][0]['text']
 
@@ -861,9 +888,9 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_length, t
 
             if output_format == "txt":
                 with open(output_path, "a", encoding="utf-8") as file:
-                    file.write(f"Human: {prompt}\nAI: {generated_text}\n")
+                    file.write(f"System: {system_prompt}\nHuman: {user_input}\nAI: {generated_text}\n")
             elif output_format == "json":
-                history = [{"Human": prompt, "AI": generated_text}]
+                history = [{"system": system_prompt, "human": user_input, "ai": generated_text}]
                 with open(output_path, "w", encoding="utf-8") as file:
                     json.dump(history, file, indent=2, ensure_ascii=False)
 
@@ -1895,9 +1922,9 @@ llm_dataset_interface = gr.Interface(
     inputs=[
         gr.Dropdown(choices=get_available_llm_datasets(), label=_("Existing Dataset (optional)", lang)),
         gr.Textbox(label=_("Dataset Name", lang), type="text"),
-        gr.Textbox(label=_("Instruction", lang), type="text"),
-        gr.Textbox(label=_("Input", lang), type="text"),
-        gr.Textbox(label=_("Output", lang), type="text"),
+        gr.Textbox(label=_("System Prompt", lang), type="text"),
+        gr.Textbox(label=_("User Input", lang), type="text"),
+        gr.Textbox(label=_("Assistant Output", lang), type="text"),
     ],
     outputs=[
         gr.Textbox(label=_("Status", lang), type="text"),
@@ -1963,7 +1990,7 @@ llm_evaluate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_finetuned_llm_models(), label=_("Model", lang)),
         gr.Dropdown(choices=get_available_llm_lora_models(), label=_("LORA Model (optional)", lang)),
         gr.Dropdown(choices=get_available_llm_datasets(), label=_("Dataset", lang)),
-        gr.Textbox(label=_("Request", lang), type="text"),
+        gr.Textbox(label=_("System Prompt", lang), type="text"),
         gr.Slider(minimum=1, maximum=2048, value=128, step=1, label=_("Max Length", lang)),
         gr.Slider(minimum=0.0, maximum=2.0, value=0.7, step=0.1, label=_("Temperature", lang)),
         gr.Slider(minimum=0.0, maximum=1.0, value=0.9, step=0.1, label=_("Top P", lang)),
@@ -2004,7 +2031,8 @@ llm_generate_interface = gr.Interface(
         gr.Dropdown(choices=get_available_finetuned_llm_models(), label=_("Model", lang)),
         gr.Dropdown(choices=get_available_llm_lora_models(), label=_("LORA Model (optional)", lang)),
         gr.Radio(choices=["transformers", "llama.cpp"], value="transformers", label=_("Model Type", lang)),
-        gr.Textbox(label=_("Request", lang), type="text")
+        gr.Textbox(label=_("System Prompt", lang), type="text"),
+        gr.Textbox(label=_("User Input", lang), type="text")
     ],
     additional_inputs=[
         gr.Slider(minimum=1, maximum=2048, value=512, step=1, label=_("Max tokens", lang)),

@@ -1,9 +1,9 @@
 {
   "Existing Dataset (optional)": "Существующий набор данных (необязательно)",
   "Dataset Name": "Название набора данных",
-  "Instruction": "Инструкция",
-  "Input": "Ввод",
-  "Output": "Вывод",
+  "System Prompt": "Системная инструкция",
+  "User Input": "Пользовательский ввод",
+  "Assistant Output": "Вывод ассистента",
   "Status": "Статус",
   "NeuroTrainerWebUI (ALPHA) - LLM-Dataset": "NeuroTrainerWebUI (АЛЬФА) - LLM-Набор данных",
   "Create a new dataset or add a new column to an existing dataset for LLM": "Создайте новый набор данных или добавьте новый столбец в существующий набор данных для LLM",

@@ -1,9 +1,9 @@
 {
   "Existing Dataset (optional)": "现有数据集（可选）",
   "Dataset Name": "数据集名称",
-  "Instruction": "指令",
-  "Input": "输入",
-  "Output": "输出",
+  "System Prompt": "系统提示",
+  "User Input": "用户输入",
+  "Assistant Output": "助手输出",
   "Status": "状态",
   "NeuroTrainerWebUI (ALPHA) - LLM-Dataset": "NeuroTrainerWebUI（测试版）- LLM-数据集",
   "Create a new dataset or add a new column to an existing dataset for LLM": "为LLM创建新数据集或向现有数据集添加新列",

@@ -560,25 +560,29 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
 
         save_path = save_dir
 
-        training_args = TrainingArguments().TrainingArguments(
-            output_dir=save_path,
-            overwrite_output_dir=True,
-            num_train_epochs=epochs,
-            per_device_train_batch_size=batch_size,
-            learning_rate=learning_rate,
-            weight_decay=weight_decay,
-            warmup_steps=warmup_steps,
-            gradient_accumulation_steps=grad_accum_steps,
-            save_steps=10_000,
-            save_total_limit=2,
-            logging_strategy='epoch',
-            adam_beta1=adam_beta1,
-            adam_beta2=adam_beta2,
-            adam_epsilon=adam_epsilon,
-            lr_scheduler_type=lr_scheduler_type,
-            max_grad_norm=gradient_clip_val,
-            resume_from_checkpoint=resume_from_checkpoint
-        )
+        training_args_dict = {
+            "output_dir": save_path,
+            "overwrite_output_dir": True,
+            "num_train_epochs": epochs,
+            "per_device_train_batch_size": batch_size,
+            "learning_rate": learning_rate,
+            "weight_decay": weight_decay,
+            "warmup_steps": warmup_steps,
+            "gradient_accumulation_steps": grad_accum_steps,
+            "save_steps": 10_000,
+            "save_total_limit": 2,
+            "logging_strategy": 'epoch',
+            "adam_beta1": adam_beta1,
+            "adam_beta2": adam_beta2,
+            "adam_epsilon": adam_epsilon,
+            "lr_scheduler_type": lr_scheduler_type,
+            "max_grad_norm": gradient_clip_val,
+        }
+
+        if resume_from_checkpoint:
+            training_args_dict["resume_from_checkpoint"] = resume_from_checkpoint
+
+        training_args = TrainingArguments().TrainingArguments(**training_args_dict)
 
         if optimizer_type == "AdamW":
             optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -630,7 +634,10 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
         )
 
         try:
-            trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+            if resume_from_checkpoint:
+                trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+            else:
+                trainer.train()
             trainer.save_model()
             tokenizer.save_pretrained(save_path)
             print("Finetuning completed successfully.")
@@ -666,11 +673,10 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
         plt.close()
 
     except Exception as e:
-        return None, str(e)
+        return str(e), None
     finally:
         del model
         del tokenizer
-        del trainer
         flush()
 
     return f"Finetuning completed. Model saved at: {save_path}", fig
@@ -816,7 +822,7 @@ def evaluate_llm(model_name, lora_model_name, dataset_file, user_input, max_leng
             return f"Evaluation failed. Error: {e}", None
 
     except Exception as e:
-        return None, str(e)
+        return str(e), None
     finally:
         del model
         del tokenizer
@@ -853,7 +859,7 @@ def quantize_llm(model_name, quantization_type):
     except subprocess.CalledProcessError as e:
         return f"Error during quantization: {e}"
     except Exception as e:
-        return None, str(e)
+        return str(e)
     finally:
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
         flush()
@@ -964,7 +970,7 @@ def generate_text(model_name, lora_model_name, model_type, prompt, max_tokens, t
                 json.dump(chat_history_json, f, ensure_ascii=False, indent=4)
 
     except Exception as e:
-        yield str(e), None,
+        yield str(e), None
 
     finally:
         del tokenizer
@@ -1034,7 +1040,7 @@ def create_sd_dataset(image_files, resize_option, custom_width, custom_height, e
 
 def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_output_name, resolution,
                 train_batch_size, gradient_accumulation_steps,
-                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, adam_beta1, adam_beta2, adam_weight_decay, adam_epsilon, max_grad_norm, noise_offset, rank, enable_xformers):
+                learning_rate, lr_scheduler, lr_warmup_steps, max_train_steps, adam_beta1, adam_beta2, adam_weight_decay, adam_epsilon, max_grad_norm, noise_offset, rank, enable_xformers, resume_from_checkpoint):
     global args
     model_path = os.path.join("models/sd", model_name)
     dataset_path = os.path.join("datasets/sd", dataset_name)
@@ -1077,6 +1083,8 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 ]
                 if enable_xformers:
                     args.append("--enable_xformers_memory_efficient_attention")
+                if resume_from_checkpoint:
+                    args.append("--resume_from_checkpoint")
             elif model_type == "SDXL":
                 dataset = load_dataset("imagefolder", data_dir=dataset_path)
                 args = [
@@ -1103,6 +1111,8 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 ]
                 if enable_xformers:
                     args.append("--enable_xformers_memory_efficient_attention")
+                if resume_from_checkpoint:
+                    args.append("--resume_from_checkpoint")
         elif finetune_method == "LORA":
             output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
             if model_type == "SD":
@@ -1132,6 +1142,8 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 ]
                 if enable_xformers:
                     args.append("--enable_xformers_memory_efficient_attention")
+                if resume_from_checkpoint:
+                    args.append("--resume_from_checkpoint")
             elif model_type == "SDXL":
                 dataset = load_dataset("imagefolder", data_dir=dataset_path)
                 args = [
@@ -1159,6 +1171,8 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
                 ]
                 if enable_xformers:
                     args.append("--enable_xformers_memory_efficient_attention")
+                if resume_from_checkpoint:
+                    args.append("--resume_from_checkpoint")
         else:
             raise ValueError(f"Invalid finetune method: {finetune_method}")
 
@@ -1217,7 +1231,7 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
             return f"Finetuning completed. Model saved at: {output_dir}", fig
 
     except Exception as e:
-        return None, str(e)
+        return str(e), None
     finally:
         flush()
 
@@ -1490,7 +1504,7 @@ def evaluate_sd(model_name, model_scheduler, vae_model_name, lora_model_names, l
         return f"Evaluation completed successfully. Results saved to {plot_path}", fig
 
     except Exception as e:
-        return None, str(e)
+        return str(e), None
     finally:
         del model
         flush()
@@ -1539,7 +1553,7 @@ def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safete
                 return f"Error converting model to single file: {e}"
 
     except Exception as e:
-        return None, str(e)
+        return str(e)
     finally:
         flush()
 
@@ -2267,7 +2281,8 @@ sd_finetune_interface = gr.Interface(
         gr.Number(value=1.0, label=_("Max grad norm", lang)),
         gr.Number(value=0, label=_("Noise offset", lang)),
         gr.Number(value=4, label=_("LORA Rank", lang)),
-        gr.Checkbox(label=_("Use xformers", lang), value=False)
+        gr.Checkbox(label=_("Use xformers", lang), value=False),
+        gr.Textbox(label=_("Resume from checkpoint", lang), type="text")
     ],
     additional_inputs_accordion=gr.Accordion(label=_("StableDiffusion-Finetune Settings", lang), open=False),
     outputs=[

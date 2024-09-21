@@ -82,7 +82,6 @@
   "Height": "Высота",
   "Generated Image": "Сгенерированное изображение",
   "Clip skip": "Пропуск клипа",
-  "Number of images to generate": "Количество изображений для генерации",
   "Seed (optional)": "Сид (необязательно)",
   "Enable BLIP": "Включить BLIP",
   "Resize option": "Вариант изменения размера",

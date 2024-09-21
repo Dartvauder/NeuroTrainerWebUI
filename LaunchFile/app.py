@@ -479,137 +479,132 @@ def finetune_llm(model_name, dataset_file, finetune_method, model_output_name, e
         train_dataset = train_dataset.map(process_examples, batched=True,
                                           remove_columns=['input', 'instruction', 'output'])
         train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+    except Exception as e:
+        print(f"Error loading dataset: {e}")
+        return f"Error loading dataset. Please check the dataset path and format. Error: {e}", None
 
-        data_collator = DataCollatorForLanguageModeling().DataCollatorForLanguageModeling(tokenizer=tokenizer,
-                                                                                          mlm=False)
+    data_collator = DataCollatorForLanguageModeling().DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
-        if finetune_method == "Full" or "Freeze":
-            save_dir = os.path.join("finetuned-models/llm/full", model_output_name)
-        elif finetune_method == "LORA":
-            save_dir = os.path.join("finetuned-models/llm/lora", model_output_name)
+    if finetune_method == "Full" or "Freeze":
+        save_dir = os.path.join("finetuned-models/llm/full", model_output_name)
+    elif finetune_method == "LORA":
+        save_dir = os.path.join("finetuned-models/llm/lora", model_output_name)
 
-        os.makedirs(save_dir, exist_ok=True)
+    os.makedirs(save_dir, exist_ok=True)
 
-        save_path = save_dir
+    save_path = save_dir
 
-        training_args_dict = {
-            "output_dir": save_path,
-            "overwrite_output_dir": True,
-            "num_train_epochs": epochs,
-            "per_device_train_batch_size": batch_size,
-            "learning_rate": learning_rate,
-            "weight_decay": weight_decay,
-            "warmup_steps": warmup_steps,
-            "gradient_accumulation_steps": grad_accum_steps,
-            "save_steps": 10_000,
-            "save_total_limit": 2,
-            "logging_strategy": 'epoch',
-            "adam_beta1": adam_beta1,
-            "adam_beta2": adam_beta2,
-            "adam_epsilon": adam_epsilon,
-            "lr_scheduler_type": lr_scheduler_type,
-            "max_grad_norm": gradient_clip_val,
-        }
+    training_args_dict = {
+        "output_dir": save_path,
+        "overwrite_output_dir": True,
+        "num_train_epochs": epochs,
+        "per_device_train_batch_size": batch_size,
+        "learning_rate": learning_rate,
+        "weight_decay": weight_decay,
+        "warmup_steps": warmup_steps,
+        "gradient_accumulation_steps": grad_accum_steps,
+        "save_steps": 10_000,
+        "save_total_limit": 2,
+        "logging_strategy": 'epoch',
+        "adam_beta1": adam_beta1,
+        "adam_beta2": adam_beta2,
+        "adam_epsilon": adam_epsilon,
+        "lr_scheduler_type": lr_scheduler_type,
+        "max_grad_norm": gradient_clip_val,
+    }
 
-        if resume_from_checkpoint:
-            training_args_dict["resume_from_checkpoint"] = resume_from_checkpoint
+    if resume_from_checkpoint:
+        training_args_dict["resume_from_checkpoint"] = resume_from_checkpoint
 
-        training_args = TrainingArguments().TrainingArguments(**training_args_dict)
+    training_args = TrainingArguments().TrainingArguments(**training_args_dict)
 
-        if optimizer_type == "AdamW":
-            optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        elif optimizer_type == "SGD":
-            optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
-        else:
-            optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    if optimizer_type == "AdamW":
+        optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    elif optimizer_type == "SGD":
+        optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-        if use_xformers:
-            try:
-                model.enable_xformers_memory_efficient_attention()
-            except ImportError:
-                print("xformers not installed. Proceeding without memory-efficient attention.")
+    if use_xformers:
+        try:
+            model.enable_xformers_memory_efficient_attention()
+        except ImportError:
+            print("xformers not installed. Proceeding without memory-efficient attention.")
 
-        if finetune_method == "LORA":
-            config = LoraConfig(
-                r=lora_r,
-                lora_alpha=lora_alpha,
-                target_modules=["q_proj", "v_proj"],
-                lora_dropout=lora_dropout,
-                bias="none",
-                task_type="CAUSAL_LM"
-            )
-
-            model = get_peft_model(model, config)
-
-        if finetune_method == "Freeze":
-            num_freeze_layers = len(model.transformer.h) - freeze_layers
-            for i, layer in enumerate(model.transformer.h):
-                if i < num_freeze_layers:
-                    for param in layer.parameters():
-                        param.requires_grad = False
-
-        if l1_reg > 0 or l2_reg > 0:
-            for param in model.parameters():
-                if param.requires_grad:
-                    if l1_reg > 0:
-                        training_args.weight_decay += l1_reg * torch.norm(param, p=1)
-                    if l2_reg > 0:
-                        training_args.weight_decay += l2_reg * torch.norm(param, p=2)
-
-        trainer = Trainer().Trainer(
-            model=model,
-            args=training_args,
-            data_collator=data_collator,
-            train_dataset=train_dataset,
-            optimizers=(optimizer, None),
-            callbacks=[MemoryMonitorCallback(print_every=1)]
+    if finetune_method == "LORA":
+        config = LoraConfig(
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            target_modules=["q_proj", "v_proj"],
+            lora_dropout=lora_dropout,
+            bias="none",
+            task_type="CAUSAL_LM"
         )
 
-        try:
-            if resume_from_checkpoint:
-                trainer.train(resume_from_checkpoint=resume_from_checkpoint)
-            else:
-                trainer.train()
-            trainer.save_model()
-            tokenizer.save_pretrained(save_path)
-            print("Finetuning completed successfully.")
-        except Exception as e:
-            print(f"Error during Finetuning: {e}")
-            return f"Finetuning failed. Error: {e}", None
+        model = get_peft_model(model, config)
 
-        loss_values = [log['loss'] for log in trainer.state.log_history if 'loss' in log]
-        epochs = [log['epoch'] for log in trainer.state.log_history if 'epoch' in log]
+    if finetune_method == "Freeze":
+        num_freeze_layers = len(model.transformer.h) - freeze_layers
+        for i, layer in enumerate(model.transformer.h):
+            if i < num_freeze_layers:
+                for param in layer.parameters():
+                    param.requires_grad = False
 
-        epochs = epochs[:len(loss_values)]
+    if l1_reg > 0 or l2_reg > 0:
+        for param in model.parameters():
+            if param.requires_grad:
+                if l1_reg > 0:
+                    training_args.weight_decay += l1_reg * torch.norm(param, p=1)
+                if l2_reg > 0:
+                    training_args.weight_decay += l2_reg * torch.norm(param, p=2)
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.plot(epochs, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
-        ax.set_ylabel('Loss')
-        ax.set_xlabel('Epoch')
-        ax.set_title('Training Loss')
+    trainer = Trainer().Trainer(
+        model=model,
+        args=training_args,
+        data_collator=data_collator,
+        train_dataset=train_dataset,
+        optimizers=(optimizer, None),
+        callbacks=[MemoryMonitorCallback(print_every=1)]
+    )
 
-        if loss_values:
-            ax.set_ylim(bottom=min(loss_values) - 0.01, top=max(loss_values) + 0.01)
-            ax.set_xticks(epochs)
-            ax.set_xticklabels([int(epoch) for epoch in epochs])
+    try:
+        if resume_from_checkpoint:
+            trainer.train(resume_from_checkpoint=resume_from_checkpoint)
         else:
-            print("No loss values found in trainer.state.log_history")
-
-        ax.grid(True)
-
-        plot_dir = save_dir
-        os.makedirs(plot_dir, exist_ok=True)
-        plot_path = os.path.join(save_dir, f"{model_output_name}_loss_plot.png")
-        plt.tight_layout()
-        plt.savefig(plot_path)
-        plt.close()
-
+            trainer.train()
+        trainer.save_model()
+        tokenizer.save_pretrained(save_path)
+        print("Finetuning completed successfully.")
     except Exception as e:
-        return str(e), None
-    finally:
-        del model
-        del tokenizer
-        flush()
+        print(f"Error during Finetuning: {e}")
+        return f"Finetuning failed. Error: {e}", None
+
+    loss_values = [log['loss'] for log in trainer.state.log_history if 'loss' in log]
+    epochs = [log['epoch'] for log in trainer.state.log_history if 'epoch' in log]
+
+    epochs = epochs[:len(loss_values)]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(epochs, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+    ax.set_ylabel('Loss')
+    ax.set_xlabel('Epoch')
+    ax.set_title('Training Loss')
+
+    if loss_values:
+        ax.set_ylim(bottom=min(loss_values) - 0.01, top=max(loss_values) + 0.01)
+        ax.set_xticks(epochs)
+        ax.set_xticklabels([int(epoch) for epoch in epochs])
+    else:
+        print("No loss values found in trainer.state.log_history")
+
+    ax.grid(True)
+
+    plot_dir = save_dir
+    os.makedirs(plot_dir, exist_ok=True)
+    plot_path = os.path.join(save_dir, f"{model_output_name}_loss_plot.png")
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    plt.close()
 
     return f"Finetuning completed. Model saved at: {save_path}", fig
 
@@ -781,11 +776,8 @@ def quantize_llm(model_name, quantization_type):
 
     except subprocess.CalledProcessError as e:
         return f"Error during quantization: {e}"
-    except Exception as e:
-        return str(e)
     finally:
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
-        flush()
 
 
 def generate_text(model_name, lora_model_name, model_type, prompt, max_length, temperature, top_p, top_k, output_format):
@@ -954,186 +946,180 @@ def finetune_sd(model_name, dataset_name, model_type, finetune_method, model_out
     if not model_output_name:
         return "Please write the model name", None
 
-    try:
-        if finetune_method == "Full":
-            output_dir = os.path.join("finetuned-models/sd/full", model_output_name)
-            if model_type == "SD":
-                dataset = load_dataset("imagefolder", data_dir=dataset_path)
-                args = [
-                    "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image.py",
-                    f"--pretrained_model_name_or_path={model_path}",
-                    f"--train_data_dir={dataset_path}",
-                    f"--output_dir={output_dir}",
-                    f"--resolution={resolution}",
-                    f"--train_batch_size={train_batch_size}",
-                    f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                    f"--learning_rate={learning_rate}",
-                    f"--lr_scheduler={lr_scheduler}",
-                    f"--lr_warmup_steps={lr_warmup_steps}",
-                    f"--max_train_steps={max_train_steps}",
-                    f"--adam_beta1={adam_beta1}",
-                    f"--adam_beta2={adam_beta2}",
-                    f"--adam_weight_decay={adam_weight_decay}",
-                    f"--adam_epsilon={adam_epsilon}",
-                    f"--max_grad_norm={max_grad_norm}",
-                    f"--noise_offset={noise_offset}",
-                    f"--caption_column=text",
-                    f"--mixed_precision=no",
-                    f"--seed=0"
-                ]
-                if enable_xformers:
-                    args.append("--enable_xformers_memory_efficient_attention")
-                if resume_from_checkpoint:
-                    args.append("--resume_from_checkpoint")
-            elif model_type == "SDXL":
-                dataset = load_dataset("imagefolder", data_dir=dataset_path)
-                args = [
-                    "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image_sdxl.py",
-                    f"--pretrained_model_name_or_path={model_path}",
-                    f"--train_data_dir={dataset_path}",
-                    f"--output_dir={output_dir}",
-                    f"--resolution={resolution}",
-                    f"--train_batch_size={train_batch_size}",
-                    f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                    f"--learning_rate={learning_rate}",
-                    f"--lr_scheduler={lr_scheduler}",
-                    f"--lr_warmup_steps={lr_warmup_steps}",
-                    f"--max_train_steps={max_train_steps}",
-                    f"--adam_beta1={adam_beta1}",
-                    f"--adam_beta2={adam_beta2}",
-                    f"--adam_weight_decay={adam_weight_decay}",
-                    f"--adam_epsilon={adam_epsilon}",
-                    f"--max_grad_norm={max_grad_norm}",
-                    f"--noise_offset={noise_offset}",
-                    f"--caption_column=text",
-                    f"--mixed_precision=no",
-                    f"--seed=0"
-                ]
-                if enable_xformers:
-                    args.append("--enable_xformers_memory_efficient_attention")
-                if resume_from_checkpoint:
-                    args.append("--resume_from_checkpoint")
-        elif finetune_method == "LORA":
-            output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
-            if model_type == "SD":
-                dataset = load_dataset("imagefolder", data_dir=dataset_path)
-                args = [
-                    "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image_lora.py",
-                    f"--pretrained_model_name_or_path={model_path}",
-                    f"--train_data_dir={dataset_path}",
-                    f"--output_dir={output_dir}",
-                    f"--resolution={resolution}",
-                    f"--train_batch_size={train_batch_size}",
-                    f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                    f"--learning_rate={learning_rate}",
-                    f"--lr_scheduler={lr_scheduler}",
-                    f"--lr_warmup_steps={lr_warmup_steps}",
-                    f"--max_train_steps={max_train_steps}",
-                    f"--adam_beta1={adam_beta1}",
-                    f"--adam_beta2={adam_beta2}",
-                    f"--adam_weight_decay={adam_weight_decay}",
-                    f"--adam_epsilon={adam_epsilon}",
-                    f"--max_grad_norm={max_grad_norm}",
-                    f"--noise_offset={noise_offset}",
-                    f"--rank={rank}",
-                    f"--caption_column=text",
-                    f"--mixed_precision=no",
-                    f"--seed=0"
-                ]
-                if enable_xformers:
-                    args.append("--enable_xformers_memory_efficient_attention")
-                if resume_from_checkpoint:
-                    args.append("--resume_from_checkpoint")
-            elif model_type == "SDXL":
-                dataset = load_dataset("imagefolder", data_dir=dataset_path)
-                args = [
-                    "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image_lora_sdxl.py",
-                    f"--pretrained_model_name_or_path={model_path}",
-                    f"--train_data_dir={dataset_path}",
-                    f"--output_dir={output_dir}",
-                    f"--resolution={resolution}",
-                    f"--train_batch_size={train_batch_size}",
-                    f"--gradient_accumulation_steps={gradient_accumulation_steps}",
-                    f"--learning_rate={learning_rate}",
-                    f"--lr_scheduler={lr_scheduler}",
-                    f"--lr_warmup_steps={lr_warmup_steps}",
-                    f"--max_train_steps={max_train_steps}",
-                    f"--adam_beta1={adam_beta1}",
-                    f"--adam_beta2={adam_beta2}",
-                    f"--adam_weight_decay={adam_weight_decay}",
-                    f"--adam_epsilon={adam_epsilon}",
-                    f"--max_grad_norm={max_grad_norm}",
-                    f"--noise_offset={noise_offset}",
-                    f"--rank={rank}",
-                    f"--caption_column=text",
-                    f"--mixed_precision=no",
-                    f"--seed=0"
-                ]
-                if enable_xformers:
-                    args.append("--enable_xformers_memory_efficient_attention")
-                if resume_from_checkpoint:
-                    args.append("--resume_from_checkpoint")
-        else:
-            raise ValueError(f"Invalid finetune method: {finetune_method}")
+    if finetune_method == "Full":
+        output_dir = os.path.join("finetuned-models/sd/full", model_output_name)
+        if model_type == "SD":
+            dataset = load_dataset("imagefolder", data_dir=dataset_path)
+            args = [
+                "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image.py",
+                f"--pretrained_model_name_or_path={model_path}",
+                f"--train_data_dir={dataset_path}",
+                f"--output_dir={output_dir}",
+                f"--resolution={resolution}",
+                f"--train_batch_size={train_batch_size}",
+                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                f"--learning_rate={learning_rate}",
+                f"--lr_scheduler={lr_scheduler}",
+                f"--lr_warmup_steps={lr_warmup_steps}",
+                f"--max_train_steps={max_train_steps}",
+                f"--adam_beta1={adam_beta1}",
+                f"--adam_beta2={adam_beta2}",
+                f"--adam_weight_decay={adam_weight_decay}",
+                f"--adam_epsilon={adam_epsilon}",
+                f"--max_grad_norm={max_grad_norm}",
+                f"--noise_offset={noise_offset}",
+                f"--caption_column=text",
+                f"--mixed_precision=no",
+                f"--seed=0"
+            ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
+            if resume_from_checkpoint:
+                args.append("--resume_from_checkpoint")
+        elif model_type == "SDXL":
+            dataset = load_dataset("imagefolder", data_dir=dataset_path)
+            args = [
+                "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image_sdxl.py",
+                f"--pretrained_model_name_or_path={model_path}",
+                f"--train_data_dir={dataset_path}",
+                f"--output_dir={output_dir}",
+                f"--resolution={resolution}",
+                f"--train_batch_size={train_batch_size}",
+                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                f"--learning_rate={learning_rate}",
+                f"--lr_scheduler={lr_scheduler}",
+                f"--lr_warmup_steps={lr_warmup_steps}",
+                f"--max_train_steps={max_train_steps}",
+                f"--adam_beta1={adam_beta1}",
+                f"--adam_beta2={adam_beta2}",
+                f"--adam_weight_decay={adam_weight_decay}",
+                f"--adam_epsilon={adam_epsilon}",
+                f"--max_grad_norm={max_grad_norm}",
+                f"--noise_offset={noise_offset}",
+                f"--caption_column=text",
+                f"--mixed_precision=no",
+                f"--seed=0"
+            ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
+            if resume_from_checkpoint:
+                args.append("--resume_from_checkpoint")
+    elif finetune_method == "LORA":
+        output_dir = os.path.join("finetuned-models/sd/lora", model_output_name)
+        if model_type == "SD":
+            dataset = load_dataset("imagefolder", data_dir=dataset_path)
+            args = [
+                "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image_lora.py",
+                f"--pretrained_model_name_or_path={model_path}",
+                f"--train_data_dir={dataset_path}",
+                f"--output_dir={output_dir}",
+                f"--resolution={resolution}",
+                f"--train_batch_size={train_batch_size}",
+                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                f"--learning_rate={learning_rate}",
+                f"--lr_scheduler={lr_scheduler}",
+                f"--lr_warmup_steps={lr_warmup_steps}",
+                f"--max_train_steps={max_train_steps}",
+                f"--adam_beta1={adam_beta1}",
+                f"--adam_beta2={adam_beta2}",
+                f"--adam_weight_decay={adam_weight_decay}",
+                f"--adam_epsilon={adam_epsilon}",
+                f"--max_grad_norm={max_grad_norm}",
+                f"--noise_offset={noise_offset}",
+                f"--rank={rank}",
+                f"--caption_column=text",
+                f"--mixed_precision=no",
+                f"--seed=0"
+            ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
+            if resume_from_checkpoint:
+                args.append("--resume_from_checkpoint")
+        elif model_type == "SDXL":
+            dataset = load_dataset("imagefolder", data_dir=dataset_path)
+            args = [
+                "accelerate", "launch", "--mixed_precision=fp16", "trainer-scripts/sd/train_text_to_image_lora_sdxl.py",
+                f"--pretrained_model_name_or_path={model_path}",
+                f"--train_data_dir={dataset_path}",
+                f"--output_dir={output_dir}",
+                f"--resolution={resolution}",
+                f"--train_batch_size={train_batch_size}",
+                f"--gradient_accumulation_steps={gradient_accumulation_steps}",
+                f"--learning_rate={learning_rate}",
+                f"--lr_scheduler={lr_scheduler}",
+                f"--lr_warmup_steps={lr_warmup_steps}",
+                f"--max_train_steps={max_train_steps}",
+                f"--adam_beta1={adam_beta1}",
+                f"--adam_beta2={adam_beta2}",
+                f"--adam_weight_decay={adam_weight_decay}",
+                f"--adam_epsilon={adam_epsilon}",
+                f"--max_grad_norm={max_grad_norm}",
+                f"--noise_offset={noise_offset}",
+                f"--rank={rank}",
+                f"--caption_column=text",
+                f"--mixed_precision=no",
+                f"--seed=0"
+            ]
+            if enable_xformers:
+                args.append("--enable_xformers_memory_efficient_attention")
+            if resume_from_checkpoint:
+                args.append("--resume_from_checkpoint")
+    else:
+        raise ValueError(f"Invalid finetune method: {finetune_method}")
 
-        subprocess.run(args)
+    subprocess.run(args)
 
-        if finetune_method == "Full":
-            logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
-            events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
-            latest_event_file = sorted(events_files)[-1]
-            event_file_path = os.path.join(logs_dir, latest_event_file)
+    if finetune_method == "Full":
+        logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
+        events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
+        latest_event_file = sorted(events_files)[-1]
+        event_file_path = os.path.join(logs_dir, latest_event_file)
 
-            event_acc = EventAccumulator(event_file_path)
-            event_acc.Reload()
+        event_acc = EventAccumulator(event_file_path)
+        event_acc.Reload()
 
-            loss_values = [s.value for s in event_acc.Scalars("train_loss")]
-            steps = [s.step for s in event_acc.Scalars("train_loss")]
+        loss_values = [s.value for s in event_acc.Scalars("train_loss")]
+        steps = [s.step for s in event_acc.Scalars("train_loss")]
 
-            fig, ax = plt.subplots(figsize=(8, 6))
-            ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
-            ax.set_ylabel('Loss')
-            ax.set_xlabel('Step')
-            ax.set_title('Training Loss')
-            ax.grid(True)
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+        ax.set_ylabel('Loss')
+        ax.set_xlabel('Step')
+        ax.set_title('Training Loss')
+        ax.grid(True)
 
-            plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
-            plt.tight_layout()
-            plt.savefig(plot_path)
-            plt.close()
+        plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
+        plt.tight_layout()
+        plt.savefig(plot_path)
+        plt.close()
 
-            return f"Fine-tuning completed. Model saved at: {output_dir}", fig
+        return f"Fine-tuning completed. Model saved at: {output_dir}", fig
 
-        elif finetune_method == "LORA":
-            logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
-            events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
-            latest_event_file = sorted(events_files)[-1]
-            event_file_path = os.path.join(logs_dir, latest_event_file)
+    elif finetune_method == "LORA":
+        logs_dir = os.path.join(output_dir, "logs", "text2image-fine-tune")
+        events_files = [f for f in os.listdir(logs_dir) if f.startswith("events.out.tfevents")]
+        latest_event_file = sorted(events_files)[-1]
+        event_file_path = os.path.join(logs_dir, latest_event_file)
 
-            event_acc = EventAccumulator(event_file_path)
-            event_acc.Reload()
+        event_acc = EventAccumulator(event_file_path)
+        event_acc.Reload()
 
-            loss_values = [s.value for s in event_acc.Scalars("train_loss")]
-            steps = [s.step for s in event_acc.Scalars("train_loss")]
+        loss_values = [s.value for s in event_acc.Scalars("train_loss")]
+        steps = [s.step for s in event_acc.Scalars("train_loss")]
 
-            fig, ax = plt.subplots(figsize=(8, 6))
-            ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
-            ax.set_ylabel('Loss')
-            ax.set_xlabel('Step')
-            ax.set_title('Training Loss')
-            ax.grid(True)
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(steps, loss_values, marker='o', markersize=4, linestyle='-', linewidth=1)
+        ax.set_ylabel('Loss')
+        ax.set_xlabel('Step')
+        ax.set_title('Training Loss')
+        ax.grid(True)
 
-            plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
-            plt.tight_layout()
-            plt.savefig(plot_path)
-            plt.close()
+        plot_path = os.path.join(output_dir, f"{model_name}_loss_plot.png")
+        plt.tight_layout()
+        plt.savefig(plot_path)
+        plt.close()
 
-            return f"Finetuning completed. Model saved at: {output_dir}", fig
-
-    except Exception as e:
-        return str(e), None
-    finally:
-        flush()
+        return f"Finetuning completed. Model saved at: {output_dir}", fig
 
 
 def plot_sd_evaluation_metrics(metrics):
@@ -1409,47 +1395,41 @@ def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safete
     os.makedirs(output_dir, exist_ok=True)
 
     try:
-        try:
-            if model_type == "SD":
-                script_path = "trainer-scripts/sd/convert_diffusers_to_original_stable_diffusion.py"
-            elif model_type == "SDXL":
-                script_path = "trainer-scripts/sd/convert_diffusers_to_original_sdxl.py"
-            else:
-                return f"Invalid model type: {model_type}"
+        if model_type == "SD":
+            script_path = "trainer-scripts/sd/convert_diffusers_to_original_stable_diffusion.py"
+        elif model_type == "SDXL":
+            script_path = "trainer-scripts/sd/convert_diffusers_to_original_sdxl.py"
+        else:
+            return f"Invalid model type: {model_type}"
 
-            output_file = f"{model_name}_converted{'_fp16' if use_half else ''}.{'safetensors' if use_safetensors else 'ckpt'}"
-            output_path = os.path.abspath(os.path.join(output_dir, output_file))
+        output_file = f"{model_name}_converted{'_fp16' if use_half else ''}.{'safetensors' if use_safetensors else 'ckpt'}"
+        output_path = os.path.abspath(os.path.join(output_dir, output_file))
 
-            args = [
-                "py",
-                script_path,
-                "--model_path", model_path,
-                "--checkpoint_path", output_path,
-            ]
-            if use_half:
-                args.append("--half")
-            if use_safetensors:
-                args.append("--use_safetensors")
+        args = [
+            "py",
+            script_path,
+            "--model_path", model_path,
+            "--checkpoint_path", output_path,
+        ]
+        if use_half:
+            args.append("--half")
+        if use_safetensors:
+            args.append("--use_safetensors")
 
-            subprocess.run(args, check=True, capture_output=True, text=True)
+        subprocess.run(args, check=True, capture_output=True, text=True)
 
-            if os.path.exists(output_path):
-                return f"Model successfully converted and saved to {output_path}"
-            else:
-                return f"Conversion completed, but the output file was not found at {output_path}"
+        if os.path.exists(output_path):
+            return f"Model successfully converted and saved to {output_path}"
+        else:
+            return f"Conversion completed, but the output file was not found at {output_path}"
 
-        except subprocess.CalledProcessError as e:
-            return f"Error converting model: {e.stderr}"
-        except Exception as e:
-            return f"Unexpected error: {str(e)}"
-
+    except subprocess.CalledProcessError as e:
+        return f"Error converting model: {e.stderr}"
     except Exception as e:
-        return str(e)
-    finally:
-        flush()
+        return f"Unexpected error: {str(e)}"
 
 
-def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, model_scheduler, num_inference_steps, cfg_scale, width, height, clip_skip, seed, num_images_per_prompt, output_format):
+def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, model_scheduler, num_inference_steps, cfg_scale, width, height, clip_skip, seed, output_format):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     if seed == "" or seed is None:
@@ -1618,8 +1598,7 @@ def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, mo
                       negative_prompt=negative_prompt,
                       num_inference_steps=num_inference_steps,
                       guidance_scale=cfg_scale, width=width, height=height, generator=generator,
-                      clip_skip=clip_skip,
-                      num_images_per_prompt=num_images_per_prompt).images[0]
+                      clip_skip=clip_skip).images[0]
     else:
         compel_proc = Compel(tokenizer=model.tokenizer,
                              text_encoder=model.text_encoder)
@@ -1629,8 +1608,7 @@ def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, mo
         image = model(prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
                       num_inference_steps=num_inference_steps,
                       guidance_scale=cfg_scale, width=width, height=height, generator=generator,
-                      clip_skip=clip_skip,
-                      num_images_per_prompt=num_images_per_prompt).images[0]
+                      clip_skip=clip_skip).images[0]
 
     output_dir = "outputs/sd"
     os.makedirs(output_dir, exist_ok=True)
@@ -1698,39 +1676,31 @@ def generate_audio(model_folder, prompt, negative_prompt, num_inference_steps, g
     model_path = os.path.join("finetuned-models", "audio", model_folder)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    try:
-        pipe = StableAudioPipeline().StableAudioPipeline.from_pretrained(model_path, torch_dtype=torch.float16)
-        pipe = pipe.to(device)
+    pipe = StableAudioPipeline().StableAudioPipeline.from_pretrained(model_path, torch_dtype=torch.float16)
+    pipe = pipe.to(device)
 
-        if seed == "" or seed is None:
-            seed = random.randint(0, 2 ** 32 - 1)
-        else:
-            seed = int(seed)
-        generator = torch.Generator(device).manual_seed(seed)
+    if seed == "" or seed is None:
+        seed = random.randint(0, 2 ** 32 - 1)
+    else:
+        seed = int(seed)
+    generator = torch.Generator(device).manual_seed(seed)
 
-        audio = pipe(
-            prompt,
-            negative_prompt=negative_prompt,
-            num_inference_steps=num_inference_steps,
-            guidance_scale=guidance_scale,
-            audio_start_in_s=audio_start_in_s,
-            audio_end_in_s=audio_end_in_s,
-            num_waveforms_per_prompt=num_waveforms_per_prompt,
-            generator=generator
-        ).audios
+    audio = pipe(
+        prompt,
+        negative_prompt=negative_prompt,
+        num_inference_steps=num_inference_steps,
+        guidance_scale=guidance_scale,
+        audio_start_in_s=audio_start_in_s,
+        audio_end_in_s=audio_end_in_s,
+        num_waveforms_per_prompt=num_waveforms_per_prompt,
+        generator=generator
+    ).audios
 
-        output = audio[0].T.float().cpu().numpy()
-        output_path = os.path.join("outputs", f"generated_audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
-        sf.write(output_path, output, pipe.vae.sampling_rate)
+    output = audio[0].T.float().cpu().numpy()
+    output_path = os.path.join("outputs", f"generated_audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+    sf.write(output_path, output, pipe.vae.sampling_rate)
 
-        return output_path, None
-
-    except Exception as e:
-        return None, str(e)
-
-    finally:
-        del pipe
-        flush()
+    return output_path, None
 
 
 def close_terminal():
@@ -2045,7 +2015,8 @@ llm_generate_interface = gr.Interface(
     ],
     additional_inputs_accordion=gr.Accordion(label=_("LLM Settings", lang), open=False),
     outputs=[
-        gr.Textbox(label="Generated text", type="text")
+        gr.Textbox(label="Generated text", type="text"),
+        gr.Textbox(label="Message", type="text")
     ],
     title=_("NeuroTrainerWebUI (ALPHA) - LLM-Generate", lang),
     description=_("Generate text using finetuned LLM models", lang),
@@ -2203,7 +2174,6 @@ sd_generate_interface = gr.Interface(
         gr.Slider(minimum=256, maximum=1024, value=512, step=64, label=_("Height", lang)),
         gr.Slider(minimum=1, maximum=4, value=1, step=1, label=_("Clip skip", lang)),
         gr.Textbox(label=_("Seed (optional)", lang), value=""),
-        gr.Slider(minimum=1, maximum=4, value=1, step=1, label=_("Number of images to generate", lang)),
         gr.Radio(choices=["png", "jpeg"], value="png", label=_("Output Format", lang))
     ],
     additional_inputs_accordion=gr.Accordion(label=_("StableDiffusion Settings", lang), open=False),

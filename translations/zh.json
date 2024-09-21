@@ -82,7 +82,6 @@
   "Height": "高度",
   "Generated Image": "生成的图像",
   "Clip skip": "Clip跳过",
-  "Number of images to generate": "要生成的图像数量",
   "Seed (optional)": "种子（可选）",
   "Enable BLIP": "启用 BLIP",
   "Resize option": "调整大小选项",

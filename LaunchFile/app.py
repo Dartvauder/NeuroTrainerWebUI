@@ -1456,6 +1456,35 @@ def convert_sd_model_to_safetensors(model_name, model_type, use_half, use_safete
         return f"Unexpected error: {str(e)}"
 
 
+def quantize_sd(model_name, quantization_type):
+    if not model_name:
+        return "Please select the model"
+
+    model_path = os.path.join("finetuned-models/sd/full", model_name)
+    stable_diffusion_cpp_path = "trainer-scripts/sd/stable-diffusion.cpp"
+
+    os.makedirs(os.path.dirname(stable_diffusion_cpp_path), exist_ok=True)
+
+    if not os.path.exists(stable_diffusion_cpp_path):
+        llama_cpp_repo_url = "https://github.com/leejet/stable-diffusion.cpp"
+        Repo.clone_from(llama_cpp_repo_url, stable_diffusion_cpp_path)
+
+    try:
+        os.chdir(stable_diffusion_cpp_path)
+
+        subprocess.run(f"cmake .. -DSD_CUBLAS=ON", shell=True, check=True)
+        subprocess.run(f"cmake --build . --config Release", shell=True, check=True)
+
+        subprocess.run(f"./bin/sd -M convert -m {model_path} --type {quantization_type} -o{model_path}", shell=True, check=True)
+
+        return f"Quantization completed successfully. Model saved at: {model_path}"
+
+    except subprocess.CalledProcessError as e:
+        return f"Error during quantization: {e}"
+    finally:
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+
 def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, model_scheduler, num_inference_steps, cfg_scale, width, height, clip_skip, seed, output_format):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -2175,6 +2204,23 @@ sd_convert_interface = gr.Interface(
     submit_btn=_("Convert", lang)
 )
 
+sd_quantize_interface = gr.Interface(
+    fn=quantize_sd,
+    inputs=[
+        gr.Dropdown(choices=get_available_finetuned_sd_models(), label=_("Model", lang)),
+        gr.Radio(choices=["q4_0", "q5_0", "q6_0", "q7_0", "q8_0"], value="q4_0", label=_("Quantization Type", lang)),
+    ],
+    outputs=[
+        gr.Textbox(label=_("Quantization Status", lang), type="text"),
+    ],
+    title=_("NeuroTrainerWebUI (ALPHA) - SD-Quantize", lang),
+    description=_("Quantize finetuned SD models to .gguf format using stable-diffusion.cpp", lang),
+    allow_flagging="never",
+    clear_btn=None,
+    stop_btn=_("Stop", lang),
+    submit_btn=_("Quantize", lang)
+)
+
 sd_generate_interface = gr.Interface(
     fn=generate_image,
     inputs=[
@@ -2403,8 +2449,8 @@ else:
 with gr.TabbedInterface([
     gr.TabbedInterface([llm_dataset_interface, llm_finetune_interface, llm_evaluate_interface, llm_quantize_interface, llm_generate_interface],
                        tab_names=[_("Dataset", lang), _("Finetune", lang), _("Evaluate", lang), _("Quantize", lang), _("Generate", lang)]),
-    gr.TabbedInterface([sd_dataset_interface, sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_generate_interface],
-                       tab_names=[_("Dataset", lang), _("Finetune", lang), _("Evaluate", lang), _("Conversion", lang), _("Generate", lang)]),
+    gr.TabbedInterface([sd_dataset_interface, sd_finetune_interface, sd_evaluate_interface, sd_convert_interface, sd_quantize_interface, sd_generate_interface],
+                       tab_names=[_("Dataset", lang), _("Finetune", lang), _("Evaluate", lang), _("Conversion", lang), _("Quantize", lang), _("Generate", lang)]),
     gr.TabbedInterface([audio_dataset_interface, audio_finetune_interface, audio_generate_interface],
                        tab_names=[_("Dataset", lang), _("Finetune", lang), _("Generate", lang)]),
     gr.TabbedInterface([wiki_interface, model_downloader_interface, settings_interface, system_interface],

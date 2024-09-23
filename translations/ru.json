@@ -7,6 +7,7 @@
   "NeuroTrainerWebUI (ALPHA) - SD-Quantize": "(АЛЬФА) NeuroTrainerWebUI - SD-квантование",
   "Quantize finetuned SD models to .gguf format using stable-diffusion.cpp": "Квантование точно настроенных SD-моделей в формат .gguf с использованием stable-diffusion.cpp",
   "Status": "Статус",
+  "Enable Quantize": "Включить квантизацию",
   "NeuroTrainerWebUI (ALPHA) - LLM-Dataset": "NeuroTrainerWebUI (АЛЬФА) - LLM-Набор данных",
   "Create a new dataset or add a new column to an existing dataset for LLM": "Создайте новый набор данных или добавьте новый столбец в существующий набор данных для LLM",
   "Model": "Модель",

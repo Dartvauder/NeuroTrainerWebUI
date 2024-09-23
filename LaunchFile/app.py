@@ -104,6 +104,7 @@ StableAudioPipeline = lazy_import('diffusers', 'StableAudioPipeline')
 
 # Another imports
 Llama = lazy_import('llama_cpp', 'Llama')
+StableDiffusion = lazy_import('stable_diffusion_cpp', 'StableDiffusion')
 
 XFORMERS_AVAILABLE = False
 try:
@@ -1485,186 +1486,30 @@ def quantize_sd(model_name, quantization_type):
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
-def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, model_scheduler, num_inference_steps, cfg_scale, width, height, clip_skip, seed, output_format):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+def generate_image_quantized(model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width, height, seed,
+                             output_format):
+    model_path = os.path.join("finetuned-models/sd/full", model_name)
 
     if seed == "" or seed is None:
         seed = random.randint(0, 2 ** 32 - 1)
     else:
         seed = int(seed)
-    generator = torch.Generator(device).manual_seed(seed)
 
-    if model_method == "Diffusers":
-        if model_type == "SD":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline().StableDiffusionPipeline.from_pretrained(model_path,
-                                                                                      torch_dtype=torch.float16,
-                                                                                      safety_checker=None).to(
-                device)
-        elif model_type == "SDXL":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_pretrained(model_path,
-                                                                                          torch_dtype=torch.float16,
-                                                                                          attention_slice=1,
-                                                                                          safety_checker=None).to(
-                device)
-    elif model_method == "Safetensors":
-        if model_type == "SD":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionPipeline().StableDiffusionPipeline.from_single_file(model_path,
-                                                                                       torch_dtype=torch.float16,
-                                                                                       safety_checker=None).to(
-                device)
-        elif model_type == "SDXL":
-            model_path = os.path.join("finetuned-models/sd/full", model_name)
-            model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_single_file(model_path,
-                                                                                           torch_dtype=torch.float16,
-                                                                                           attention_slice=1,
-                                                                                           safety_checker=None).to(
-                device)
-    else:
-        return None, "Invalid model type selected"
+    stable_diffusion = StableDiffusion().StableDiffusion(
+        model_path=model_path,
+        wtype="default",
+    )
 
-    if not model_name:
-        return None, "Please select the model"
-
-    if lora_model_names and not model_name:
-        return None, "Please select the original model"
-
-    if XFORMERS_AVAILABLE:
-        model.enable_xformers_memory_efficient_attention(attention_op=None)
-        model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
-        model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
-
-    model.to(device)
-    model.text_encoder.to(device)
-    model.vae.to(device)
-    model.unet.to(device)
-
-    if vae_model_name is not None:
-        vae_model_path = os.path.join("inputs", "image", "sd_models", "vae", f"{vae_model_name}.safetensors")
-        if os.path.exists(vae_model_path):
-            vae = AutoencoderKL().AutoencoderKL.from_single_file(vae_model_path, device_map="auto",
-                                                                 torch_dtype=torch.float16,
-                                                                 variant="fp16")
-            model.vae = vae.to(device)
-
-    try:
-        if model_scheduler == "EulerDiscreteScheduler":
-            model.scheduler = EulerDiscreteScheduler().EulerDiscreteScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "DPMSolverSinglestepScheduler":
-            model.scheduler = DPMSolverSinglestepScheduler().DPMSolverSinglestepScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "DPMSolverMultistepScheduler":
-            model.scheduler = DPMSolverMultistepScheduler().DPMSolverMultistepScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "EDMDPMSolverMultistepScheduler":
-            model.scheduler = EDMDPMSolverMultistepScheduler().EDMDPMSolverMultistepScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "EDMEulerScheduler":
-            model.scheduler = EDMEulerScheduler().EDMEulerScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "KDPM2DiscreteScheduler":
-            model.scheduler = KDPM2DiscreteScheduler().KDPM2DiscreteScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "KDPM2AncestralDiscreteScheduler":
-            model.scheduler = KDPM2AncestralDiscreteScheduler().KDPM2AncestralDiscreteScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "EulerAncestralDiscreteScheduler":
-            model.scheduler = EulerAncestralDiscreteScheduler().EulerAncestralDiscreteScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "HeunDiscreteScheduler":
-            model.scheduler = HeunDiscreteScheduler().HeunDiscreteScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "LMSDiscreteScheduler":
-            model.scheduler = LMSDiscreteScheduler().LMSDiscreteScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "DEISMultistepScheduler":
-            model.scheduler = DEISMultistepScheduler().DEISMultistepScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "UniPCMultistepScheduler":
-            model.scheduler = UniPCMultistepScheduler().UniPCMultistepScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "LCMScheduler":
-            model.scheduler = LCMScheduler().LCMScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "DPMSolverSDEScheduler":
-            model.scheduler = DPMSolverSDEScheduler().DPMSolverSDEScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "TCDScheduler":
-            model.scheduler = TCDScheduler().TCDScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "DDIMScheduler":
-            model.scheduler = DDIMScheduler().DDIMScheduler.from_config(
-                model.scheduler.config)
-        elif model_scheduler == "DDPMScheduler":
-            model.scheduler = DDPMScheduler().DDPMScheduler.from_config(
-                model.scheduler.config)
-
-        print(f"Scheduler successfully set to {model_scheduler}")
-    except Exception as e:
-        print(f"Error initializing scheduler: {e}")
-        print("Using default scheduler")
-
-    model.safety_checker = None
-
-    model.enable_vae_slicing()
-    model.enable_vae_tiling()
-    model.enable_model_cpu_offload()
-
-    if isinstance(lora_scales, str):
-        lora_scales = [float(scale.strip()) for scale in lora_scales.split(',') if scale.strip()]
-    elif isinstance(lora_scales, (int, float)):
-        lora_scales = [float(lora_scales)]
-
-    lora_loaded = False
-    if lora_model_names and lora_scales:
-        if len(lora_model_names) != len(lora_scales):
-            print(
-                f"Warning: Number of LoRA models ({len(lora_model_names)}) does not match number of scales ({len(lora_scales)}). Using available scales.")
-
-        for i, lora_model_name in enumerate(lora_model_names):
-            if i < len(lora_scales):
-                lora_scale = lora_scales[i]
-            else:
-                lora_scale = 1.0
-
-            lora_model_path = os.path.join("inputs", "image", "sd_models", "lora", lora_model_name)
-            if os.path.exists(lora_model_path):
-                adapter_name = os.path.splitext(os.path.basename(lora_model_name))[0]
-                try:
-                    model.load_lora_weights(lora_model_path, adapter_name=adapter_name)
-                    model.fuse_lora(lora_scale=lora_scale)
-                    lora_loaded = True
-                    print(f"Loaded LoRA {lora_model_name} with scale {lora_scale}")
-                except Exception as e:
-                    print(f"Error loading LoRA {lora_model_name}: {str(e)}")
-
-    if model_type == "SDXL":
-        compel = Compel(
-            tokenizer=[model.tokenizer, model.tokenizer_2],
-            text_encoder=[model.text_encoder, model.text_encoder_2],
-            returned_embeddings_type=ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED,
-            requires_pooled=[False, True]
-        )
-        prompt_embeds, pooled_prompt_embeds = compel(prompt)
-        negative_prompt = negative_prompt
-        image = model(prompt_embeds=prompt_embeds, pooled_prompt_embeds=pooled_prompt_embeds,
-                      negative_prompt=negative_prompt,
-                      num_inference_steps=num_inference_steps,
-                      guidance_scale=cfg_scale, width=width, height=height, generator=generator,
-                      clip_skip=clip_skip).images[0]
-    else:
-        compel_proc = Compel(tokenizer=model.tokenizer,
-                             text_encoder=model.text_encoder)
-        prompt_embeds = compel_proc(prompt)
-        negative_prompt_embeds = compel_proc(negative_prompt)
-
-        image = model(prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
-                      num_inference_steps=num_inference_steps,
-                      guidance_scale=cfg_scale, width=width, height=height, generator=generator,
-                      clip_skip=clip_skip).images[0]
+    output = stable_diffusion.txt_to_img(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        cfg_scale=cfg_scale,
+        height=height,
+        width=width,
+        sample_steps=num_inference_steps,
+        seed=seed,
+        sample_method="euler"
+    )
 
     output_dir = "outputs/sd"
     os.makedirs(output_dir, exist_ok=True)
@@ -1673,9 +1518,206 @@ def generate_image(model_name, vae_model_name, lora_model_names, lora_scales, mo
     output_file = f"sd_image_{timestamp}.{output_format}"
     output_path = os.path.join(output_dir, output_file)
 
-    image.save(output_path)
+    output[0].save(output_path)
 
-    return image, "Image generation successful"
+    return output[0], "Image generation with quantized model successful"
+
+
+def generate_image(model_name, use_quantized, vae_model_name, lora_model_names, lora_scales, model_method, model_type, prompt, negative_prompt, model_scheduler, num_inference_steps, cfg_scale, width, height, clip_skip, seed, output_format):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    if use_quantized:
+        return generate_image_quantized(model_name, prompt, negative_prompt, num_inference_steps, cfg_scale, width,
+                                        height, seed, output_format)
+    else:
+        if seed == "" or seed is None:
+            seed = random.randint(0, 2 ** 32 - 1)
+        else:
+            seed = int(seed)
+        generator = torch.Generator(device).manual_seed(seed)
+
+        if model_method == "Diffusers":
+            if model_type == "SD":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionPipeline().StableDiffusionPipeline.from_pretrained(model_path,
+                                                                                          torch_dtype=torch.float16,
+                                                                                          safety_checker=None).to(
+                    device)
+            elif model_type == "SDXL":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_pretrained(model_path,
+                                                                                              torch_dtype=torch.float16,
+                                                                                              attention_slice=1,
+                                                                                              safety_checker=None).to(
+                    device)
+        elif model_method == "Safetensors":
+            if model_type == "SD":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionPipeline().StableDiffusionPipeline.from_single_file(model_path,
+                                                                                           torch_dtype=torch.float16,
+                                                                                           safety_checker=None).to(
+                    device)
+            elif model_type == "SDXL":
+                model_path = os.path.join("finetuned-models/sd/full", model_name)
+                model = StableDiffusionXLPipeline().StableDiffusionXLPipeline.from_single_file(model_path,
+                                                                                               torch_dtype=torch.float16,
+                                                                                               attention_slice=1,
+                                                                                               safety_checker=None).to(
+                    device)
+        else:
+            return None, "Invalid model type selected"
+
+        if not model_name:
+            return None, "Please select the model"
+
+        if lora_model_names and not model_name:
+            return None, "Please select the original model"
+
+        if XFORMERS_AVAILABLE:
+            model.enable_xformers_memory_efficient_attention(attention_op=None)
+            model.vae.enable_xformers_memory_efficient_attention(attention_op=None)
+            model.unet.enable_xformers_memory_efficient_attention(attention_op=None)
+
+        model.to(device)
+        model.text_encoder.to(device)
+        model.vae.to(device)
+        model.unet.to(device)
+
+        if vae_model_name is not None:
+            vae_model_path = os.path.join("inputs", "image", "sd_models", "vae", f"{vae_model_name}.safetensors")
+            if os.path.exists(vae_model_path):
+                vae = AutoencoderKL().AutoencoderKL.from_single_file(vae_model_path, device_map="auto",
+                                                                     torch_dtype=torch.float16,
+                                                                     variant="fp16")
+                model.vae = vae.to(device)
+
+        try:
+            if model_scheduler == "EulerDiscreteScheduler":
+                model.scheduler = EulerDiscreteScheduler().EulerDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DPMSolverSinglestepScheduler":
+                model.scheduler = DPMSolverSinglestepScheduler().DPMSolverSinglestepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DPMSolverMultistepScheduler":
+                model.scheduler = DPMSolverMultistepScheduler().DPMSolverMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "EDMDPMSolverMultistepScheduler":
+                model.scheduler = EDMDPMSolverMultistepScheduler().EDMDPMSolverMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "EDMEulerScheduler":
+                model.scheduler = EDMEulerScheduler().EDMEulerScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "KDPM2DiscreteScheduler":
+                model.scheduler = KDPM2DiscreteScheduler().KDPM2DiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "KDPM2AncestralDiscreteScheduler":
+                model.scheduler = KDPM2AncestralDiscreteScheduler().KDPM2AncestralDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "EulerAncestralDiscreteScheduler":
+                model.scheduler = EulerAncestralDiscreteScheduler().EulerAncestralDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "HeunDiscreteScheduler":
+                model.scheduler = HeunDiscreteScheduler().HeunDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "LMSDiscreteScheduler":
+                model.scheduler = LMSDiscreteScheduler().LMSDiscreteScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DEISMultistepScheduler":
+                model.scheduler = DEISMultistepScheduler().DEISMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "UniPCMultistepScheduler":
+                model.scheduler = UniPCMultistepScheduler().UniPCMultistepScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "LCMScheduler":
+                model.scheduler = LCMScheduler().LCMScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DPMSolverSDEScheduler":
+                model.scheduler = DPMSolverSDEScheduler().DPMSolverSDEScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "TCDScheduler":
+                model.scheduler = TCDScheduler().TCDScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DDIMScheduler":
+                model.scheduler = DDIMScheduler().DDIMScheduler.from_config(
+                    model.scheduler.config)
+            elif model_scheduler == "DDPMScheduler":
+                model.scheduler = DDPMScheduler().DDPMScheduler.from_config(
+                    model.scheduler.config)
+
+            print(f"Scheduler successfully set to {model_scheduler}")
+        except Exception as e:
+            print(f"Error initializing scheduler: {e}")
+            print("Using default scheduler")
+
+        model.safety_checker = None
+
+        model.enable_vae_slicing()
+        model.enable_vae_tiling()
+        model.enable_model_cpu_offload()
+
+        if isinstance(lora_scales, str):
+            lora_scales = [float(scale.strip()) for scale in lora_scales.split(',') if scale.strip()]
+        elif isinstance(lora_scales, (int, float)):
+            lora_scales = [float(lora_scales)]
+
+        lora_loaded = False
+        if lora_model_names and lora_scales:
+            if len(lora_model_names) != len(lora_scales):
+                print(
+                    f"Warning: Number of LoRA models ({len(lora_model_names)}) does not match number of scales ({len(lora_scales)}). Using available scales.")
+
+            for i, lora_model_name in enumerate(lora_model_names):
+                if i < len(lora_scales):
+                    lora_scale = lora_scales[i]
+                else:
+                    lora_scale = 1.0
+
+                lora_model_path = os.path.join("inputs", "image", "sd_models", "lora", lora_model_name)
+                if os.path.exists(lora_model_path):
+                    adapter_name = os.path.splitext(os.path.basename(lora_model_name))[0]
+                    try:
+                        model.load_lora_weights(lora_model_path, adapter_name=adapter_name)
+                        model.fuse_lora(lora_scale=lora_scale)
+                        lora_loaded = True
+                        print(f"Loaded LoRA {lora_model_name} with scale {lora_scale}")
+                    except Exception as e:
+                        print(f"Error loading LoRA {lora_model_name}: {str(e)}")
+
+        if model_type == "SDXL":
+            compel = Compel(
+                tokenizer=[model.tokenizer, model.tokenizer_2],
+                text_encoder=[model.text_encoder, model.text_encoder_2],
+                returned_embeddings_type=ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED,
+                requires_pooled=[False, True]
+            )
+            prompt_embeds, pooled_prompt_embeds = compel(prompt)
+            negative_prompt = negative_prompt
+            image = model(prompt_embeds=prompt_embeds, pooled_prompt_embeds=pooled_prompt_embeds,
+                          negative_prompt=negative_prompt,
+                          num_inference_steps=num_inference_steps,
+                          guidance_scale=cfg_scale, width=width, height=height, generator=generator,
+                          clip_skip=clip_skip).images[0]
+        else:
+            compel_proc = Compel(tokenizer=model.tokenizer,
+                                 text_encoder=model.text_encoder)
+            prompt_embeds = compel_proc(prompt)
+            negative_prompt_embeds = compel_proc(negative_prompt)
+
+            image = model(prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                          num_inference_steps=num_inference_steps,
+                          guidance_scale=cfg_scale, width=width, height=height, generator=generator,
+                          clip_skip=clip_skip).images[0]
+
+        output_dir = "outputs/sd"
+        os.makedirs(output_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        output_file = f"sd_image_{timestamp}.{output_format}"
+        output_path = os.path.join(output_dir, output_file)
+
+        image.save(output_path)
+
+        return image, "Image generation successful"
 
 
 def create_audio_dataset(dataset_name, audio_files):
@@ -2225,6 +2267,7 @@ sd_generate_interface = gr.Interface(
     fn=generate_image,
     inputs=[
         gr.Dropdown(choices=get_available_finetuned_sd_models(), label=_("Model", lang)),
+        gr.Checkbox(label=_("Enable Quantize", lang), value=False),
         gr.Dropdown(choices=get_available_vae_sd_models(), label=_("Select VAE model (optional)", lang), value=None),
         gr.Dropdown(choices=get_available_sd_lora_models(), label=_("LORA Model (optional)", lang)),
         gr.Textbox(label=_("LoRA Scales", lang)),

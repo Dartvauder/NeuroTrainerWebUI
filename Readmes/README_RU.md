@@ -13,7 +13,7 @@
 
 ### LLM: <img width="1115" alt="1ru" src="https://github.com/user-attachments/assets/d60252a6-18b1-40a3-a8bd-dd14420b4f37">
 
-### StableDiffusion: <img width="1116" alt="2ru" src="https://github.com/user-attachments/assets/e672f05f-50aa-48bb-b182-0247d4286339">
+### StableDiffusion: <img width="1115" alt="2ru" src="https://github.com/user-attachments/assets/82e9f866-cded-482f-9d5b-94082c791fa5">
 
 ### StableAudio: <img width="1115" alt="3ru" src="https://github.com/user-attachments/assets/197f8c46-4056-44bf-bf65-f294b614aa76">
 
@@ -24,7 +24,7 @@
 * Простая установка через install.bat (Windows) или install.sh (Linux)
 * Гибкий и оптимизированный интерфейс (с помощью Gradio)
 * Поддержка Transformers: дообучение, оценка, квантизация и генерация (LLM)
-* Поддержка Diffusers и Safetensors: дообучение, оценка, конвертация и генерация (StableDiffusion)
+* Поддержка Diffusers и Safetensors: дообучение, оценка, конвертация, квантизация и генерация (StableDiffusion)
 * Поддержка StableAudio: дообучение и генерация
 * Полный и LORA типы дообучения, оценки и генерации (для LLM и StableDiffusion)
 * Возможность создания набора данных (для моделей LLM, StableDiffusion и StableAudio)

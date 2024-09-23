@@ -13,7 +13,7 @@
 
 ### LLM: <img width="1115" alt="1zh" src="https://github.com/user-attachments/assets/f0102207-d2f4-46ad-841d-1e1b9ec3a50e">
 
-### StableDiffusion: <img width="1115" alt="2zh" src="https://github.com/user-attachments/assets/27541085-3a21-49bf-8619-d7f482b23b23">
+### StableDiffusion: <img width="1115" alt="2zh" src="https://github.com/user-attachments/assets/9e6a1a28-b2ac-4348-8b94-4a25d83a7f10">
 
 ### StableAudio: <img width="1115" alt="3zh" src="https://github.com/user-attachments/assets/d0501eb9-47d0-45e7-af09-4f29e5492066">
 
@@ -24,7 +24,7 @@
 * 通过install.bat（Windows）或install.sh（Linux）轻松安装
 * 灵活优化的界面（由Gradio提供）
 * 支持Transformers：微调、评估、量化和生成（LLM）
-* 支持Diffusers和Safetensors：微调、评估、转换和生成（StableDiffusion）
+* 支持Diffusers和Safetensors：微调、评估、转换、量化和生成（StableDiffusion）
 * 支持StableAudio：微调和生成
 * 完整和LORA类型的微调、评估和生成（适用于LLM和StableDiffusion）
 * 创建数据集的能力（适用于LLM、StableDiffusion和StableAudio模型）

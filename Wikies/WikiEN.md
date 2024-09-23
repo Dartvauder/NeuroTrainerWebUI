@@ -40,7 +40,7 @@
 3) Set up the models parameters to generate
 4) Click the `Submit` button to receive the generated text
 
-### StableDiffusion - has five sub-tabs:
+### StableDiffusion - has six sub-tabs:
 
 #### Dataset:
 
@@ -73,6 +73,12 @@
 2) Select a model type
 3) Set up the models parameters for convert
 4) Click the `Submit` button to receive the conversion of model
+
+#### Quantize:
+
+1) First upload your models to the folder: *finetuned-models/sd*
+2) Select a Model and Quantization Type
+3) Click the `Submit` button to receive the conversion of model
 
 #### Generate:
 

@@ -14,7 +14,7 @@ The goal of the project - to create the easiest possible application to finetune
 
 ### LLM: <img width="1118" alt="1" src="https://github.com/user-attachments/assets/4d03a953-57ec-4921-8bc2-c967f840a7f3">
 
-### StableDiffusion: <img width="1116" alt="2" src="https://github.com/user-attachments/assets/f4144c43-968f-4a05-b63d-801708953498">
+### StableDiffusion: <img width="1115" alt="2" src="https://github.com/user-attachments/assets/ef3a1711-7387-45f5-8db3-c45f825355c6">
 
 ### StableAudio: <img width="1118" alt="3" src="https://github.com/user-attachments/assets/b8dea5af-6011-4a9e-87e5-9ba6af774fa9">
 
@@ -25,7 +25,7 @@ The goal of the project - to create the easiest possible application to finetune
 * Easy installation via install.bat(Windows) or install.sh(Linux)
 * Flexible and optimized interface (By Gradio)
 * Support for Transformers: finetune, evaluate, quantize and generate (LLM)
-* Support for Diffusers and Safetensors: finetune, evaluate, conversion and generate (StableDiffusion)
+* Support for Diffusers and Safetensors: finetune, evaluate, conversion, quantize and generate (StableDiffusion)
 * Support for StableAudio: finetune and generate
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
 * Ability to create a dataset (For LLM, StableDiffusion and StableAudio models)

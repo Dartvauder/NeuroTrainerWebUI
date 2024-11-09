@@ -18,7 +18,7 @@ The goal of the project - to create the easiest possible application to finetune
 
 ### StableAudio: <img width="1116" alt="3" src="https://github.com/user-attachments/assets/d549715b-fb57-42c8-82c3-d34ad0977ec0">
 
-### Interface: <img width="1115" alt="4" src="https://github.com/user-attachments/assets/fe8c7086-5313-42dc-bd24-d649596273c9">
+### Interface: <img width="1111" alt="4" src="https://github.com/user-attachments/assets/5ac059af-5951-44b4-9fa4-85d1d8d83e42">
 
 ## Features:
 

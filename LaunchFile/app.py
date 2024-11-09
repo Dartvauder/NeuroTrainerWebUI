@@ -370,32 +370,6 @@ def get_available_finetuned_audio_models():
     return [m for m in os.listdir(models_dir) if os.path.isdir(os.path.join(models_dir, m))]
 
 
-def reload_model_lists():
-    llm_models = get_available_llm_models()
-    llm_lora_models = get_available_llm_lora_models()
-    finetuned_llm_models = get_available_finetuned_llm_models()
-    llm_datasets = get_available_llm_datasets()
-    sd_models = get_available_sd_models()
-    sd_vae_models = get_available_vae_sd_models()
-    sd_lora_models = get_available_sd_lora_models()
-    finetuned_sd_models = get_available_finetuned_sd_models()
-    sd_datasets = get_available_sd_datasets()
-    audio_datasets = get_available_audio_datasets()
-    audio_models = get_available_audio_models()
-    finetuned_audio_models = get_available_finetuned_audio_models()
-
-    return [
-        llm_models, llm_lora_models, finetuned_llm_models, llm_datasets,
-        sd_models, sd_vae_models, sd_lora_models, finetuned_sd_models, sd_datasets,
-        audio_datasets, audio_models, finetuned_audio_models
-    ]
-
-
-def reload_interface():
-    updated_lists = reload_model_lists()[:11]
-    return [gr.Dropdown(choices=list) for list in updated_lists]
-
-
 def get_memory_usage():
     cpu_mem = psutil.virtual_memory().percent
     gpu_mem = torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated() * 100 if torch.cuda.is_available() else 0
@@ -1998,6 +1972,19 @@ def get_wiki_content(url, local_file="Wikies/WikiEN.md"):
         return "<p>Wiki content is not available.</p>"
 
 
+def create_footer():
+    footer_html = """
+    <div style="text-align: center; background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-top: 20px;">
+        <span style="margin-right: 15px;">🔥 diffusers: 0.31.0</span>
+        <span style="margin-right: 15px;">📄 transformers: 4.46.2</span>
+        <span style="margin-right: 15px;">🦙 llama-cpp-python: 0.3.1</span>
+        <span style="margin-right: 15px;">🖼️ stable-diffusion-cpp-python: 0.2.1</span>
+        <span>ℹ️ gradio: 5.5.0</span>
+    </div>
+    """
+    return gr.Markdown(footer_html)
+
+
 settings = load_settings()
 lang = settings['language']
 
@@ -2516,8 +2503,6 @@ with gr.TabbedInterface([
 ],
     tab_names=[_("LLM", lang), _("StableDiffusion", lang), _("StableAudio", lang), _("Interface", lang)], theme=theme) as app:
 
-    reload_button = gr.Button(_("Reload interface", lang))
-
     close_button = gr.Button(_("Close terminal", lang))
     close_button.click(close_terminal, [], [], queue=False)
 
@@ -2530,47 +2515,23 @@ with gr.TabbedInterface([
     folder_button = gr.Button(_("Outputs", lang))
     folder_button.click(open_outputs_folder, [], [], queue=False)
 
-    dropdowns_to_update = [
-        llm_dataset_interface.input_components[0],
-        llm_finetune_interface.input_components[0],
-        llm_finetune_interface.input_components[1],
-        llm_evaluate_interface.input_components[0],
-        llm_evaluate_interface.input_components[1],
-        llm_evaluate_interface.input_components[2],
-        llm_quantize_interface.input_components[0],
-        llm_generate_interface.input_components[0],
-        llm_generate_interface.input_components[1],
-        sd_dataset_interface.input_components[1],
-        sd_finetune_interface.input_components[0],
-        sd_finetune_interface.input_components[1],
-        sd_evaluate_interface.input_components[0],
-        sd_evaluate_interface.input_components[2],
-        sd_evaluate_interface.input_components[3],
-        sd_evaluate_interface.input_components[5],
-        sd_convert_interface.input_components[0],
-        sd_generate_interface.input_components[0],
-        sd_generate_interface.input_components[1],
-        sd_generate_interface.input_components[2],
-        audio_finetune_interface.input_components[0],
-        audio_finetune_interface.input_components[1],
-        audio_generate_interface.input_components[0],
-    ]
-
-    reload_button.click(reload_interface, outputs=dropdowns_to_update[:11])
-
     github_link = gr.HTML(
         '<div style="text-align: center; margin-top: 20px;">'
         '<a href="https://github.com/Dartvauder/NeuroTrainerWebUI" target="_blank" style="color: blue; text-decoration: none; font-size: 16px; margin-right: 20px;">'
         'GitHub'
         '</a>'
-        '<a href="https://huggingface.co/Dartvauder007" target="_blank" style="color: blue; text-decoration: none; font-size: 16px;">'
+        '<a href="https://huggingface.co/Dartvauder007" target="_blank" style="color: blue; text-decoration: none; font-size: 16px; margin-right: 20px;">'
         'Hugging Face'
+        '</a>'
+        '<a href="https://civitai.com/user/Dartvauder057" target="_blank" style="color: blue; text-decoration: none; font-size: 16px;">'
+        'CivitAI'
         '</a>'
         '</div>'
     )
+    create_footer()
 
     project_root = os.getcwd()
-    project_image = "TechnicalFiles/project-image.png"
+    project_image = "TechnicalFiles/project-image.jpg"
 
     app.queue(api_open=settings['api_open'], max_size=settings['queue_max_size'],
               status_update_rate=settings['status_update_rate'])

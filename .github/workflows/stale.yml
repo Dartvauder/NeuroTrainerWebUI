@@ -1,0 +1,34 @@
+name: Mark stale issues and pull requests
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/stale@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: '👋 It looks like this issue has been inactive for some time.
+                            • If the issue is still active, please leave a comment.
+                            • If there is no activity for 7 days, the issue will be automatically closed.'
+          days-before-issue-stale: 30
+          days-before-issue-close: 7
+          stale-issue-label: 'no-issue-activity'
+
+          stale-pr-message: '👋 It looks like this pull request has been inactive for some time.
+                            • If you are still working on this PR, please add a comment.
+                            • If there is no activity for 7 days, the PR will be automatically closed.'
+          days-before-pr-stale: 14
+          days-before-pr-close: 7
+          stale-pr-label: 'no-pr-activity'
+
+          exempt-issue-labels: 'blocked,must-have'
+          exempt-pr-labels: 'blocked,work-in-progress'
+          exempt-all-milestones: true

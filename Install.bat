@@ -7,6 +7,10 @@ py -m venv "%CURRENT_DIR%venv"
 call "%CURRENT_DIR%venv\Scripts\activate.bat"
 cls
 
+echo Setting up local pip cache...
+if not exist "%CURRENT_DIR%TechnicalFiles\pip_cache" mkdir "%CURRENT_DIR%TechnicalFiles\pip_cache"
+set PIP_CACHE_DIR=%CURRENT_DIR%TechnicalFiles\pip_cache
+
 echo Upgrading pip, setuptools and wheel...
 python -m pip install --upgrade pip
 pip install wheel setuptools
@@ -14,8 +18,8 @@ timeout /t 3 /nobreak >nul
 cls
 
 echo Installing dependencies...
-if not exist "%CURRENT_DIR%logs" mkdir "%CURRENT_DIR%logs"
-set ERROR_LOG="%CURRENT_DIR%logs\installation_errors.log"
+if not exist "%CURRENT_DIR%TechnicalFiles\logs" mkdir "%CURRENT_DIR%TechnicalFiles\logs"
+set ERROR_LOG="%CURRENT_DIR%TechnicalFiles\logs\installation_errors.log"
 type nul > %ERROR_LOG%
 
 pip install --no-deps -r "%CURRENT_DIR%RequirementsFiles\requirements.txt" 2>> %ERROR_LOG%

@@ -6,10 +6,10 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 warnings.filterwarnings("ignore")
 logging.getLogger("httpx").setLevel(logging.WARNING)
-cache_dir = os.path.join("cache")
+cache_dir = os.path.join("TechnicalFiles/cache")
 os.makedirs(cache_dir, exist_ok=True)
 os.environ["XDG_CACHE_HOME"] = cache_dir
-temp_dir = os.path.join("temp")
+temp_dir = os.path.join("TechnicalFiles/temp")
 os.makedirs(temp_dir, exist_ok=True)
 os.environ["TMPDIR"] = temp_dir
 from compel import Compel, ReturnedEmbeddingsType
@@ -156,7 +156,7 @@ def flush():
 
 def load_translation(lang):
     try:
-        with open(f"translations/{lang}.json", "r", encoding="utf-8") as f:
+        with open(f"TechnicalFiles/translations/{lang}.json", "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         return {}
@@ -174,7 +174,7 @@ def _(text, lang="EN"):
 
 
 def load_settings():
-    if not os.path.exists('Settings.json'):
+    if not os.path.exists('TechnicalFiles/Settings.json'):
         default_settings = {
             "language": "EN",
             "share_mode": False,
@@ -202,15 +202,15 @@ def load_settings():
                 "font_mono": "Courier New"
             }
         }
-        with open('Settings.json', 'w') as f:
+        with open('TechnicalFiles/Settings.json', 'w') as f:
             json.dump(default_settings, f, indent=4)
 
-    with open('Settings.json', 'r') as f:
+    with open('TechnicalFiles/Settings.json', 'r') as f:
         return json.load(f)
 
 
 def save_settings(settings):
-    with open('Settings.json', 'w') as f:
+    with open('TechnicalFiles/Settings.json', 'w') as f:
         json.dump(settings, f, indent=4)
 
 
@@ -368,32 +368,6 @@ def get_available_finetuned_audio_models():
     models_dir = "finetuned-models/audio"
     os.makedirs(models_dir, exist_ok=True)
     return [m for m in os.listdir(models_dir) if os.path.isdir(os.path.join(models_dir, m))]
-
-
-def reload_model_lists():
-    llm_models = get_available_llm_models()
-    llm_lora_models = get_available_llm_lora_models()
-    finetuned_llm_models = get_available_finetuned_llm_models()
-    llm_datasets = get_available_llm_datasets()
-    sd_models = get_available_sd_models()
-    sd_vae_models = get_available_vae_sd_models()
-    sd_lora_models = get_available_sd_lora_models()
-    finetuned_sd_models = get_available_finetuned_sd_models()
-    sd_datasets = get_available_sd_datasets()
-    audio_datasets = get_available_audio_datasets()
-    audio_models = get_available_audio_models()
-    finetuned_audio_models = get_available_finetuned_audio_models()
-
-    return [
-        llm_models, llm_lora_models, finetuned_llm_models, llm_datasets,
-        sd_models, sd_vae_models, sd_lora_models, finetuned_sd_models, sd_datasets,
-        audio_datasets, audio_models, finetuned_audio_models
-    ]
-
-
-def reload_interface():
-    updated_lists = reload_model_lists()[:11]
-    return [gr.Dropdown(choices=list) for list in updated_lists]
 
 
 def get_memory_usage():
@@ -1864,11 +1838,13 @@ def get_system_info():
             ram_total, ram_used, ram_free, disk_total, disk_free, app_size)
 
 
-def settings_interface(language, share_value, debug_value, monitoring_value, auto_launch, api_status, open_api, queue_max_size, status_update_rate, gradio_auth, server_name, server_port, hf_token, theme,
+def settings_interface(language, share_value, debug_value, monitoring_value, auto_launch, api_status, open_api, queue_max_size, status_update_rate, max_file_size, gradio_auth, server_name, server_port, hf_token, share_server_address, theme,
                        enable_custom_theme, primary_hue, secondary_hue, neutral_hue,
-                       spacing_size, radius_size, text_size, font, font_mono):
+                       spacing_size, radius_size, text_size, font, font_mono, progress=gr.Progress()):
+    progress(0.1, desc="Initializing settings update")
     settings = load_settings()
 
+    progress(0.2, desc="Updating general settings")
     settings['language'] = language
     settings['share_mode'] = share_value == "True"
     settings['debug_mode'] = debug_value == "True"
@@ -1878,12 +1854,20 @@ def settings_interface(language, share_value, debug_value, monitoring_value, aut
     settings['api_open'] = open_api == "True"
     settings['queue_max_size'] = int(queue_max_size) if queue_max_size else 10
     settings['status_update_rate'] = status_update_rate
+    settings['max_file_size'] = int(max_file_size) if max_file_size else 1000
+
+    progress(0.4, desc="Updating authentication settings")
     if gradio_auth:
         username, password = gradio_auth.split(':')
         settings['auth'] = {"username": username, "password": password}
+
+    progress(0.6, desc="Updating server settings")
     settings['server_name'] = server_name
     settings['server_port'] = int(server_port) if server_port else 7860
     settings['hf_token'] = hf_token
+    settings['share_server_address'] = share_server_address
+
+    progress(0.8, desc="Updating theme settings")
     settings['theme'] = theme
     settings['custom_theme']['enabled'] = enable_custom_theme
     settings['custom_theme']['primary_hue'] = primary_hue
@@ -1895,7 +1879,10 @@ def settings_interface(language, share_value, debug_value, monitoring_value, aut
     settings['custom_theme']['font'] = font
     settings['custom_theme']['font_mono'] = font_mono
 
+    progress(0.9, desc="Saving settings")
     save_settings(settings)
+
+    progress(1.0, desc="Settings update complete")
 
     message = "Settings updated successfully!"
     message += f"\nLanguage set to {settings['language']}"
@@ -1908,64 +1895,65 @@ def settings_interface(language, share_value, debug_value, monitoring_value, aut
     message += f"\nQueue max size is {settings['queue_max_size']}"
     message += f"\nStatus update rate is {settings['status_update_rate']}"
     message += f"\nNew Gradio Auth is {settings['auth']}"
-    message += f" Server will run on {settings['server_name']}:{settings['server_port']}"
+    message += f"\nServer will run on {settings['server_name']}:{settings['server_port']}"
     message += f"\nNew HF-Token is {settings['hf_token']}"
+    message += f"\nNew Share server address is {settings['share_server_address']}"
+    message += f"\nNew Max file size is {settings['max_file_size']}"
     message += f"\nTheme set to {theme and settings['custom_theme'] if enable_custom_theme else theme}"
     message += f"\nPlease restart the application for changes to take effect!"
 
     return message
 
 
-def download_model(model_name_llm, model_name_sd, custom_model_link):
-    if not model_name_llm and not model_name_sd and not custom_model_link:
-        return "Please select a model to download or provide a custom link"
+DOWNLOADER_MODEL_TYPES = ["LLM-Model", "LLM-LoRA", "SD-Model", "SD-Inpaint", "SD-LoRA"]
 
-    if (model_name_llm and model_name_sd) or (model_name_llm and custom_model_link) or (model_name_sd and custom_model_link):
-        return "Please select only one option for downloading"
+DOWNLOADER_MODEL_PATHS = {
+    "LLM-Model": "models/llm",
+    "LLM-LoRA": "models/llm",
+    "SD-Model": "models/sd",
+    "SD-Inpaint": "models/sd",
+    "SD-LoRA": "models/sd"
+}
 
-    if custom_model_link:
-        try:
-            model_name = custom_model_link.split("/")[-1]
-            model_path = os.path.join("models/audio", model_name)
-            Repo.clone_from(f"https://huggingface.co/{custom_model_link}", model_path)
-            return f"Custom model {model_name} downloaded successfully!"
-        except Exception as e:
-            return f"Error downloading custom model: {str(e)}"
 
-    if model_name_llm:
-        model_url = ""
-        if model_name_llm == "StarlingLM(Transformers7B)":
-            model_url = "https://huggingface.co/Nexusflow/Starling-LM-7B-beta"
-        elif model_name_llm == "OpenChat3.6(Llama8B.Q4)":
-            model_url = "https://huggingface.co/bartowski/openchat-3.6-8b-20240522-GGUF/resolve/main/openchat-3.6-8b-20240522-Q4_K_M.gguf"
-        model_path = os.path.join("inputs", "text", "llm_models", model_name_llm)
+def download_model(model_url, model_type, progress=gr.Progress()):
+    progress(0.1, desc="Initializing model download")
+    if not model_url:
+        gr.Info("Please enter a model URL to download")
+        return None
 
-        if model_url:
-            if model_name_llm == "StarlingLM(Transformers7B)":
-                Repo.clone_from(model_url, model_path)
-            else:
-                response = requests.get(model_url, allow_redirects=True)
-                with open(model_path, "wb") as file:
-                    file.write(response.content)
-            return f"LLM model {model_name_llm} downloaded successfully!"
+    try:
+        model_path = DOWNLOADER_MODEL_PATHS.get(model_type)
+        if not model_path:
+            gr.Error(f"Invalid model type: {model_type}")
+            return None
+
+        os.makedirs(model_path, exist_ok=True)
+
+        if "/" in model_url and "blob/main" not in model_url and not model_url.startswith("http"):
+            progress(0.3, desc="Cloning repository")
+            repo_name = model_url.split("/")[-1]
+            repo_path = os.path.join(model_path, repo_name)
+            Repo.clone_from(f"https://huggingface.co/{model_url}", repo_path)
+            progress(0.9, desc="Repository cloned successfully")
+            return f"{model_type} repository {repo_name} downloaded successfully!"
         else:
-            return "Invalid LLM model name"
-
-    if model_name_sd:
-        model_url = ""
-        if model_name_sd == "Dreamshaper8(SD1.5)":
-            model_url = "https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors"
-        elif model_name_sd == "RealisticVisionV4.0(SDXL)":
-            model_url = "https://huggingface.co/SG161222/RealVisXL_V4.0/resolve/main/RealVisXL_V4.0.safetensors"
-        model_path = os.path.join("inputs", "image", "sd_models", f"{model_name_sd}.safetensors")
-
-        if model_url:
-            response = requests.get(model_url, allow_redirects=True)
-            with open(model_path, "wb") as file:
+            progress(0.3, desc="Downloading file")
+            if "blob/main" in model_url:
+                model_url = model_url.replace("blob/main", "resolve/main")
+            file_name = model_url.split("/")[-1]
+            file_path = os.path.join(model_path, file_name)
+            response = requests.get(model_url, allow_redirects=True, stream=True)
+            with open(file_path, "wb") as file:
                 file.write(response.content)
-            return f"StableDiffusion model {model_name_sd} downloaded successfully!"
-        else:
-            return "Invalid StableDiffusion model name"
+            progress(0.9, desc="File downloaded successfully")
+            return f"{model_type} file {file_name} downloaded successfully!"
+
+    except Exception as e:
+        gr.Error(f"Error downloading model: {str(e)}")
+        return None
+    finally:
+        progress(1.0, desc="Download process complete")
 
 
 def get_wiki_content(url, local_file="Wikies/WikiEN.md"):
@@ -1982,6 +1970,19 @@ def get_wiki_content(url, local_file="Wikies/WikiEN.md"):
             return markdown.markdown(content)
     except:
         return "<p>Wiki content is not available.</p>"
+
+
+def create_footer():
+    footer_html = """
+    <div style="text-align: center; background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-top: 20px;">
+        <span style="margin-right: 15px;">🔥 diffusers: 0.31.0</span>
+        <span style="margin-right: 15px;">📄 transformers: 4.46.2</span>
+        <span style="margin-right: 15px;">🦙 llama-cpp-python: 0.3.1</span>
+        <span style="margin-right: 15px;">🖼️ stable-diffusion-cpp-python: 0.2.1</span>
+        <span>ℹ️ gradio: 5.5.0</span>
+    </div>
+    """
+    return gr.Markdown(footer_html)
 
 
 settings = load_settings()
@@ -2378,9 +2379,9 @@ wiki_interface = gr.Interface(
             "https://github.com/Dartvauder/NeuroTrainerWebUI/wiki/RU‐Wiki"
         ), interactive=False),
         gr.Textbox(label=_("Local Wiki", lang), value=(
-            "Wikies/WikiEN.md" if lang == "EN" else
-            "Wikies/WikiZH.md" if lang == "ZH" else
-            "Wikies/WikiRU.md"
+            "TechnicalFiles/Wikies/WikiEN.md" if lang == "EN" else
+            "TechnicalFiles/Wikies/WikiZH.md" if lang == "ZH" else
+            "TechnicalFiles/Wikies/WikiRU.md"
         ), interactive=False)
     ],
     outputs=gr.HTML(label=_("Wiki Content", lang)),
@@ -2395,15 +2396,14 @@ wiki_interface = gr.Interface(
 model_downloader_interface = gr.Interface(
     fn=download_model,
     inputs=[
-        gr.Dropdown(choices=[None, "StarlingLM(Transformers7B)", "OpenChat3.6(Llama8B.Q4)"], label=_("Download LLM model", lang), value=None),
-        gr.Dropdown(choices=[None, "Dreamshaper8(SD1.5)", "RealisticVisionV4.0(SDXL)"], label=_("Download StableDiffusion model", lang), value=None),
-        gr.Textbox(label=_("Download custom Stable Audio model", lang), placeholder="stabilityai/stable-audio-open-1.0")
+        gr.Textbox(label=_("Model URL", lang), placeholder="repo-author/repo-name or https://huggingface.co/.../model.file"),
+        gr.Radio(choices=DOWNLOADER_MODEL_TYPES, label=_("Model Type", lang))
     ],
     outputs=[
-        gr.Textbox(label=_("Message", lang), type="text"),
+        gr.Textbox(label=_("Message", lang), type="text")
     ],
     title=_("NeuroTrainerWebUI (ALPHA) - ModelDownloader", lang),
-    description=_("This user interface allows you to download LLM and StableDiffusion models", lang),
+    description=_("This interface allows you to download various types of models", lang),
     allow_flagging="never",
     clear_btn=None,
     stop_btn=_("Stop", lang),
@@ -2422,10 +2422,12 @@ settings_interface = gr.Interface(
         gr.Radio(choices=["True", "False"], label=_("Open API", lang), value="False"),
         gr.Number(label=_("Queue max size", lang), value=settings['queue_max_size']),
         gr.Textbox(label=_("Queue status update rate", lang), value=settings['status_update_rate']),
+        gr.Number(label=_("Max file size", lang), value=settings['max_file_size']),
         gr.Textbox(label=_("Gradio Auth", lang), value=settings['auth']),
         gr.Textbox(label=_("Server Name", lang), value=settings['server_name']),
         gr.Number(label=_("Server Port", lang), value=settings['server_port']),
-        gr.Textbox(label=_("Hugging Face Token", lang), value=settings['hf_token'])
+        gr.Textbox(label=_("Hugging Face Token", lang), value=settings['hf_token']),
+        gr.Textbox(label=_("Share server address", lang), value=settings['share_server_address'])
     ],
     additional_inputs=[
         gr.Radio(choices=["Base", "Default", "Glass", "Monochrome", "Soft"], label=_("Theme", lang), value=settings['theme']),
@@ -2501,8 +2503,6 @@ with gr.TabbedInterface([
 ],
     tab_names=[_("LLM", lang), _("StableDiffusion", lang), _("StableAudio", lang), _("Interface", lang)], theme=theme) as app:
 
-    reload_button = gr.Button(_("Reload interface", lang))
-
     close_button = gr.Button(_("Close terminal", lang))
     close_button.click(close_terminal, [], [], queue=False)
 
@@ -2515,44 +2515,23 @@ with gr.TabbedInterface([
     folder_button = gr.Button(_("Outputs", lang))
     folder_button.click(open_outputs_folder, [], [], queue=False)
 
-    dropdowns_to_update = [
-        llm_dataset_interface.input_components[0],
-        llm_finetune_interface.input_components[0],
-        llm_finetune_interface.input_components[1],
-        llm_evaluate_interface.input_components[0],
-        llm_evaluate_interface.input_components[1],
-        llm_evaluate_interface.input_components[2],
-        llm_quantize_interface.input_components[0],
-        llm_generate_interface.input_components[0],
-        llm_generate_interface.input_components[1],
-        sd_dataset_interface.input_components[1],
-        sd_finetune_interface.input_components[0],
-        sd_finetune_interface.input_components[1],
-        sd_evaluate_interface.input_components[0],
-        sd_evaluate_interface.input_components[2],
-        sd_evaluate_interface.input_components[3],
-        sd_evaluate_interface.input_components[5],
-        sd_convert_interface.input_components[0],
-        sd_generate_interface.input_components[0],
-        sd_generate_interface.input_components[1],
-        sd_generate_interface.input_components[2],
-        audio_finetune_interface.input_components[0],
-        audio_finetune_interface.input_components[1],
-        audio_generate_interface.input_components[0],
-    ]
-
-    reload_button.click(reload_interface, outputs=dropdowns_to_update[:11])
-
     github_link = gr.HTML(
         '<div style="text-align: center; margin-top: 20px;">'
         '<a href="https://github.com/Dartvauder/NeuroTrainerWebUI" target="_blank" style="color: blue; text-decoration: none; font-size: 16px; margin-right: 20px;">'
         'GitHub'
         '</a>'
-        '<a href="https://huggingface.co/Dartvauder007" target="_blank" style="color: blue; text-decoration: none; font-size: 16px;">'
+        '<a href="https://huggingface.co/Dartvauder007" target="_blank" style="color: blue; text-decoration: none; font-size: 16px; margin-right: 20px;">'
         'Hugging Face'
+        '</a>'
+        '<a href="https://civitai.com/user/Dartvauder057" target="_blank" style="color: blue; text-decoration: none; font-size: 16px;">'
+        'CivitAI'
         '</a>'
         '</div>'
     )
+    create_footer()
+
+    project_root = os.getcwd()
+    project_image = "TechnicalFiles/project-image.jpg"
 
     app.queue(api_open=settings['api_open'], max_size=settings['queue_max_size'],
               status_update_rate=settings['status_update_rate'])
@@ -2565,6 +2544,9 @@ with gr.TabbedInterface([
         auth=authenticate if settings['auth'] else None,
         server_name=settings['server_name'],
         server_port=settings['server_port'],
-        favicon_path="project-image.jpg",
+        max_file_size=settings['max_file_size'] * gr.FileSize.MB,
+        share_server_address=settings['share_server_address'] if settings['share_server_address'] else None,
+        favicon_path=project_image,
+        allowed_paths=[project_root],
         auth_message=_("Welcome to NeuroTrainerWebUI! (ALPHA)", lang)
     )

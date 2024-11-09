@@ -9,9 +9,13 @@ set CURRENT_DIR=%~dp0
 
 call "%CURRENT_DIR%venv\Scripts\activate.bat"
 
+echo Setting up local pip cache...
+if not exist "%CURRENT_DIR%TechnicalFiles\pip_cache" mkdir "%CURRENT_DIR%TechnicalFiles\pip_cache"
+set PIP_CACHE_DIR=%CURRENT_DIR%TechnicalFiles\pip_cache
+
 echo Updating dependencies...
-if not exist "%CURRENT_DIR%logs" mkdir "%CURRENT_DIR%logs"
-set ERROR_LOG="%CURRENT_DIR%logs\update_errors.log"
+if not exist "%CURRENT_DIR%TechnicalFiles\logs" mkdir "%CURRENT_DIR%TechnicalFiles\logs"
+set ERROR_LOG="%CURRENT_DIR%TechnicalFiles\logs\update_errors.log"
 type nul > %ERROR_LOG%
 
 python -m pip install --upgrade pip

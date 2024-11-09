@@ -12,25 +12,28 @@ A simple and convenient interface for using of various neural network models. Yo
 
 The goal of the project - to create the easiest possible application to finetune, evaluate and generate of neural network models
 
-### LLM: <img width="1118" alt="1" src="https://github.com/user-attachments/assets/4d03a953-57ec-4921-8bc2-c967f840a7f3">
+### LLM: <img width="1114" alt="1" src="https://github.com/user-attachments/assets/ed89c506-8b1d-49bb-8579-d1fdcfb94d9f">
 
-### StableDiffusion: <img width="1115" alt="2" src="https://github.com/user-attachments/assets/ef3a1711-7387-45f5-8db3-c45f825355c6">
+### StableDiffusion: <img width="1111" alt="2" src="https://github.com/user-attachments/assets/19e21251-8fd1-4007-8ff6-7cfe1fff8f68">
 
-### StableAudio: <img width="1118" alt="3" src="https://github.com/user-attachments/assets/b8dea5af-6011-4a9e-87e5-9ba6af774fa9">
+### StableAudio: <img width="1116" alt="3" src="https://github.com/user-attachments/assets/d549715b-fb57-42c8-82c3-d34ad0977ec0">
 
-### Interface: <img width="1118" alt="4" src="https://github.com/user-attachments/assets/de6a0d26-c6dc-437f-9b21-3d05bbe36e44">
+### Interface: <img width="1111" alt="4" src="https://github.com/user-attachments/assets/5ac059af-5951-44b4-9fa4-85d1d8d83e42">
 
 ## Features:
 
 * Easy installation via install.bat(Windows) or install.sh(Linux)
+* You can use the application via your mobile device in localhost (Via IPv4) or anywhere online (Via Share)
 * Flexible and optimized interface (By Gradio)
+* Debug logging to logs from `Install` and `Update` files
+* Available in three languages
 * Support for Transformers: finetune, evaluate, quantize and generate (LLM)
 * Support for Diffusers and Safetensors: finetune, evaluate, conversion, quantize and generate (StableDiffusion)
 * Support for StableAudio: finetune and generate
 * Full and LORA types of finetune, evaluate and generate (For LLM and StableDiffusion)
 * Ability to create a dataset (For LLM, StableDiffusion and StableAudio models)
 * Wiki
-* ModelDownloader (For LLM and StableDiffusion)
+* ModelDownloader
 * Application settings
 * Ability to see system sensors
 
@@ -92,6 +95,7 @@ First of all, I want to thank the developers of [PyCharm](https://www.jetbrains.
 * `diffusers` - https://github.com/huggingface/diffusers
 * `llama.cpp-python` - https://github.com/abetlen/llama-cpp-python
 * `stable-diffusion-cpp-python` - https://github.com/william-murray1204/stable-diffusion-cpp-python
+* `stable-audio-tools` - https://github.com/Stability-AI/stable-audio-tools
 
 ## Third Party Licenses:
 

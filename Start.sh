@@ -4,16 +4,18 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 
 source "$CURRENT_DIR/venv/bin/activate"
 
+python "$CURRENT_DIR/TechnicalFiles/first_setup.py"
+
 echo "Attempting to read Settings.json..."
-if [ ! -f Settings.json ]; then
+if [ ! -f TechnicalFiles/Settings.json ]; then
     echo "Settings.json file not found!"
     exit 1
 fi
 
 echo "Contents of Settings.json:"
-cat Settings.json
+cat TechnicalFiles/Settings.json
 
-HF_TOKEN=$(grep -oP '"hf_token"\s*:\s*"\K[^"]+' Settings.json)
+HF_TOKEN=$(grep -oP '"hf_token"\s*:\s*"\K[^"]+' TechnicalFiles/Settings.json)
 
 echo "HF_TOKEN value: '$HF_TOKEN'"
 

@@ -6,10 +6,10 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 warnings.filterwarnings("ignore")
 logging.getLogger("httpx").setLevel(logging.WARNING)
-cache_dir = os.path.join("cache")
+cache_dir = os.path.join("TechnicalFiles/cache")
 os.makedirs(cache_dir, exist_ok=True)
 os.environ["XDG_CACHE_HOME"] = cache_dir
-temp_dir = os.path.join("temp")
+temp_dir = os.path.join("TechnicalFiles/temp")
 os.makedirs(temp_dir, exist_ok=True)
 os.environ["TMPDIR"] = temp_dir
 from compel import Compel, ReturnedEmbeddingsType

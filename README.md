@@ -3,8 +3,9 @@
 ![project-image](https://github.com/user-attachments/assets/2a47ff0d-9131-4c3b-897b-46f7cb9e4ae2)
 
 * Work in progress! (ALPHA)
-* English | [Русский](/Readmes/README_RU.md) | [漢語](/Readmes/README_ZH.md) 
-
+* English | [Русский](/Readmes/README_RU.md) | [漢語](/Readmes/README_ZH.md)
+* <a href='https://github.com/MShawon/github-clone-count-badge'><img alt='GitHub Clones' src='https://img.shields.io/badge/dynamic/json?color=success&label=Clone&query=count&url=https://gist.githubusercontent.com/Dartvauder/aa704ab4803f8694f2436cbf874a34fd/raw/clone.json&logo=github'></a>
+[![Pylint](https://github.com/Dartvauder/NeuroTrainerWebUI/actions/workflows/pylint.yml/badge.svg)](https://github.com/Dartvauder/NeuroTrainerWebUI/actions/workflows/pylint.yml)
 
 ## Description:
 

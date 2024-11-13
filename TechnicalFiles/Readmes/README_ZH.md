@@ -3,7 +3,7 @@
 ![项目图片](https://github.com/user-attachments/assets/2a47ff0d-9131-4c3b-897b-46f7cb9e4ae2)
 
 * 正在开发中！（测试版）
-* [English](/README.md) | [Русский](/Readmes/README_RU.md) | 漢語
+* [English](/README.md) | [Русский](/TechnicalFiles/Readmes/README_RU.md) | 漢語
 
 ## 描述：
 

@@ -3,7 +3,7 @@
 ![изображение-проекта](https://github.com/user-attachments/assets/2a47ff0d-9131-4c3b-897b-46f7cb9e4ae2)
 
 * В разработке! (АЛЬФА)
-* [English](/README.md) | Русский | [漢語](/Readmes/README_ZH.md) 
+* [English](/README.md) | Русский | [漢語](/TechnicalFiles/Readmes/README_ZH.md) 
 
 ## Описание:
 
